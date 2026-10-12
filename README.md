@@ -296,3 +296,8 @@ onto adalib.
 | `ADALIB_STUDIO_PYTHON` | backend interpreter | Python used for workers (must have adalib-IFL) |
 | `ADALIB_STUDIO_MAX_PARALLEL` | 1 | Concurrent worker processes |
 | `ADALIB_STUDIO_CORS` | localhost:5173 | Allowed dev origins |
+
+## License
+
+MIT; see [LICENSE](LICENSE). ADALib itself (`adalib-IFL`) is also MIT. The
+built frontend bundles React, Plotly.js and KaTeX, all under the MIT license.
