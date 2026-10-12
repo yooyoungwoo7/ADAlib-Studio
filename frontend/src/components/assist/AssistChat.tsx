@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent } from "react";
 import { api } from "../../services/api";
-import type { AssistImage, AssistProvider, AssistStatus, SystemSpec, TimeSpan } from "../../types/api";
+import type { AssistImage, AssistProvider, AssistStatus, ForwardOptions, SystemSpec, TimeSpan } from "../../types/api";
 import { Button, Field, Section } from "../common/controls";
 
 const MAX_IMAGES = 3;
@@ -46,9 +46,24 @@ async function toAttachment(file: File): Promise<Attachment> {
   return { media_type, data, url };
 }
 
-const sameDefinition = (a: { system: SystemSpec; time: TimeSpan }, b: { system: SystemSpec; time: TimeSpan }) =>
-  JSON.stringify([a.system.name, a.system.states, a.system.parameters, a.system.equations, a.time.t0, a.time.t1]) ===
-  JSON.stringify([b.system.name, b.system.states, b.system.parameters, b.system.equations, b.time.t0, b.time.t1]);
+/** What the assistant can change: the system, its time span and the solver options. */
+export interface Definition {
+  system: SystemSpec;
+  time: TimeSpan;
+  options: ForwardOptions;
+}
+
+const OPTION_KEYS = (o: ForwardOptions) => Object.keys(o).sort() as (keyof ForwardOptions)[];
+const sameDefinition = (a: Definition, b: Definition) =>
+  JSON.stringify([a.system.name, a.system.states, a.system.parameters, a.system.equations, a.time.t0, a.time.t1, OPTION_KEYS(a.options).map((k) => a.options[k])]) ===
+  JSON.stringify([b.system.name, b.system.states, b.system.parameters, b.system.equations, b.time.t0, b.time.t1, OPTION_KEYS(b.options).map((k) => b.options[k])]);
+
+/** "n_seg 50→100, use_lbfgs true→false" */
+const optionChanges = (a: ForwardOptions, b: ForwardOptions) =>
+  OPTION_KEYS(b)
+    .filter((k) => a[k] !== b[k])
+    .map((k) => `${k} ${a[k]}→${b[k]}`)
+    .join(", ");
 
 /** One chat line. Assistant lines that changed the editor keep what was there before, for Undo. */
 export interface ChatEntry {
@@ -56,12 +71,12 @@ export interface ChatEntry {
   content: string;
   error?: boolean;
   meta?: string;
-  before?: { system: SystemSpec; time: TimeSpan };
-  after?: { system: SystemSpec; time: TimeSpan };
+  before?: Definition;
+  after?: Definition;
   images?: string[]; // thumbnails of what the user attached
 }
 
-const EXAMPLES = ["Damped pendulum, gamma = 0.5, for 10 s", "Lorenz system with the classic parameters", "Set mu to 3 and solve until t = 8"];
+const EXAMPLES = ["Damped pendulum, gamma = 0.5, for 10 s", "Lorenz system with the classic parameters", "Use 100 segments and turn off L-BFGS"];
 
 /**
  * "Describe your system" chat for the Forward module. The backend asks the configured LLM for a
@@ -71,6 +86,7 @@ const EXAMPLES = ["Damped pendulum, gamma = 0.5, for 10 s", "Lorenz system with 
 export function AssistChat({
   system,
   time,
+  options,
   onApply,
   chat,
   setChat,
@@ -78,7 +94,8 @@ export function AssistChat({
 }: {
   system: SystemSpec;
   time: TimeSpan;
-  onApply: (system: SystemSpec, time: TimeSpan) => void;
+  options: ForwardOptions;
+  onApply: (d: Definition) => void;
   chat: ChatEntry[];
   setChat: (update: (c: ChatEntry[]) => ChatEntry[]) => void;
   disabled: boolean;
@@ -141,23 +158,26 @@ export function AssistChat({
         images: images.map(({ media_type, data }) => ({ media_type, data })),
         current_system: system,
         current_time: time,
+        current_options: options,
         history,
         language: navigator.language,
       });
-      const before = { system, time };
-      const changed = !sameDefinition(before, r);
-      if (changed) onApply(r.system, r.time);
+      const before: Definition = { system, time, options };
+      const after: Definition = { system: r.system, time: r.time, options: r.options };
+      const changed = !sameDefinition(before, after);
+      if (changed) onApply(after);
       const states = r.system.states.map((s) => s.name).join(", ");
+      const opts = optionChanges(options, r.options);
       setChat((c) => [
         ...c,
         {
           role: "assistant",
           content: r.reply || `Set up ${r.system.name}.`,
           meta: changed
-            ? `${r.system.name} · states ${states} · t ∈ [${r.time.t0}, ${r.time.t1}] · ${r.model}${r.attempts > 1 ? ` · ${r.attempts} tries` : ""}`
+            ? `${r.system.name} · states ${states} · t ∈ [${r.time.t0}, ${r.time.t1}]${opts ? ` · solver: ${opts}` : ""} · ${r.model}${r.attempts > 1 ? ` · ${r.attempts} tries` : ""}`
             : `no change to the editor · ${r.model}`,
           before: changed ? before : undefined,
-          after: changed ? { system: r.system, time: r.time } : undefined,
+          after: changed ? after : undefined,
         },
       ]);
     } catch (e) {
@@ -175,7 +195,7 @@ export function AssistChat({
   const undo = (i: number) => {
     const b = chat[i].before;
     if (!b) return;
-    onApply(b.system, b.time);
+    onApply(b);
     setChat((c) => c.map((m, j) => (j === i ? { ...m, before: undefined, meta: `${m.meta ?? ""} · undone` } : m)));
   };
 
@@ -203,8 +223,8 @@ export function AssistChat({
           onDrop={onDrop}
         >
           <p className="text-[11.5px] text-muted leading-snug">
-            Describe the system in words, or attach a picture of the equations (paste, drop or 📎). The answer fills the
-            editor (checked by the equation parser); review it, then press Run.
+            Describe the system or the solver settings in words, or attach a picture of the equations (paste, drop or 📎).
+            The answer fills the editor and the solver panel (checked before applying); review it, then press Run.
           </p>
           <div ref={listRef} className="flex flex-col gap-1.5 max-h-[300px] overflow-y-auto" aria-live="polite">
             {chat.length === 0 && (
@@ -244,12 +264,12 @@ export function AssistChat({
                       Undo this change
                     </button>
                   )}
-                  {m.after && !sameDefinition(m.after, { system, time }) && (
+                  {m.after && !sameDefinition(m.after, { system, time, options }) && (
                     <button
                       type="button"
                       className="mt-1 text-[11.5px] text-ink-2 underline cursor-pointer hover:text-ink"
                       title="The editor no longer shows this answer's system"
-                      onClick={() => onApply(m.after!.system, m.after!.time)}
+                      onClick={() => onApply(m.after!)}
                     >
                       Apply again
                     </button>

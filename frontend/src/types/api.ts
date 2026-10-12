@@ -559,6 +559,7 @@ export interface AssistForwardRequest {
   provider?: AssistProvider;
   current_system?: SystemSpec;
   current_time?: TimeSpan;
+  current_options?: ForwardOptions;
   history: AssistMessage[];
   language?: string;
 }
@@ -566,6 +567,7 @@ export interface AssistForwardRequest {
 export interface AssistForwardResponse {
   system: SystemSpec;
   time: TimeSpan;
+  options: ForwardOptions;
   reply: string;
   provider: AssistProvider;
   model: string;

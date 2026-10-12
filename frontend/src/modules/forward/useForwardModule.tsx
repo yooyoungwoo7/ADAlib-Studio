@@ -82,8 +82,9 @@ export function useForwardModule(ctx: ModuleContext): ModuleView {
         <AssistChat
           system={p.system}
           time={p.time}
-          onApply={(system, time) =>
-            ctx.setProject((pr) => ({ ...pr, name: system.name, forward: { ...pr.forward, system, time, exampleId: null } }))
+          options={p.options}
+          onApply={({ system, time, options }) =>
+            ctx.setProject((pr) => ({ ...pr, name: system.name, forward: { ...pr.forward, system, time, options, exampleId: null } }))
           }
           chat={chat}
           setChat={setChat}

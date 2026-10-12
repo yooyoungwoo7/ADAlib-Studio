@@ -292,7 +292,8 @@ onto adalib.
 
 The **AI assistant** panel under Verification turns a sentence into a system
 definition: "damped pendulum with gamma = 0.5 for 10 s", then follow-ups such
-as "set mu to 3". The backend sends the request, the system on screen and the
+as "set mu to 3" or solver changes such as "100 segments, no L-BFGS" (checked
+like the solver panel, e.g. Nt_total divisible by n_seg). The backend sends the request, the system on screen and the
 chat so far to Anthropic Claude or OpenAI, checks the answer with the equation
 parser (and asks again if it fails), and fills the editor. Nothing runs until
 you press **Run**; each answer has **Undo this change**. You can also attach up

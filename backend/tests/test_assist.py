@@ -100,6 +100,23 @@ def test_images_reach_both_providers(client, monkeypatch):
     assert client.post("/api/assist/forward", json={"prompt": " "}).status_code == 422   # nothing to do
 
 
+def test_solver_options_are_merged_and_checked(client, monkeypatch):
+    client.put("/api/assist/settings", json={"provider": "openai", "api_key": "sk-abcdefgh"})
+    cur = {"basis": "adaf", "n_seg": 50, "Nt_total": 2500, "epochs": 5, "use_lbfgs": True}
+    bad = {**PENDULUM, "options": {"n_seg": 120}}                    # 2500 % 120 != 0
+    worse = {**PENDULUM, "options": {"n_segments": 100}}             # unknown key
+    good = {**PENDULUM, "options": {"n_seg": 100, "Nt_total": 5000, "use_lbfgs": False}}
+    calls = fake_llm(monkeypatch, [json.dumps(bad), json.dumps(worse), json.dumps(good)])
+    out = client.post("/api/assist/forward", json={"prompt": "100 segments, no L-BFGS", "current_options": cur}).json()
+    o = out["options"]
+    assert out["attempts"] == 3 and (o["n_seg"], o["Nt_total"], o["use_lbfgs"], o["epochs"]) == (100, 5000, False, 5)
+    assert "divisible" in calls[1]["messages"][-1]["content"] and "n_segments" in calls[2]["messages"][-1]["content"]
+    assert '"options": {"basis": "adaf"' in calls[0]["messages"][-1]["content"]
+    fake_llm(monkeypatch, [json.dumps(PENDULUM)])                   # no "options": all kept
+    out = client.post("/api/assist/forward", json={"prompt": "x", "current_options": cur}).json()
+    assert out["options"]["n_seg"] == 50 and out["options"]["Nt_total"] == 2500
+
+
 def test_describe_gives_up(client, monkeypatch):
     client.put("/api/assist/settings", json={"provider": "openai", "api_key": "sk-abcdefgh"})
     fake_llm(monkeypatch, ["not json"] * llm_assist.MAX_ATTEMPTS)
