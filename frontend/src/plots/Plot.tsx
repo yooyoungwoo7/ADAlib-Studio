@@ -6,16 +6,27 @@ const loadPlotly = () => import("plotly.js-dist-min").then((m) => m.default);
 
 export { baseLayout, chartTokens, type PlotSpec, type Tokens } from "./theme";
 
+/** Save a rendered chart (the element passed to Plot's elementRef) as PNG (2x) or SVG. */
+export async function downloadPlot(el: HTMLElement, filename: string, format: "png" | "svg") {
+  const Plotly = await loadPlotly();
+  await Plotly.downloadImage(el as HTMLElement & Parameters<typeof Plotly.downloadImage>[0], { format, filename, scale: 2 });
+}
+
 export function Plot({
   spec,
   filename,
   ariaLabel,
   themeKey,
+  elementRef,
+  className = "w-full h-full min-h-[240px]",
 }: {
   spec: PlotSpec;
   filename: string;
   ariaLabel: string;
   themeKey: string;
+  /** receives the chart element, e.g. for downloadPlot */
+  elementRef?: (el: HTMLDivElement | null) => void;
+  className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -49,5 +60,15 @@ export function Plot({
     };
   }, []);
 
-  return <div ref={ref} role="img" aria-label={ariaLabel} className="w-full h-full min-h-[240px]" />;
+  return (
+    <div
+      ref={(el) => {
+        ref.current = el;
+        elementRef?.(el);
+      }}
+      role="img"
+      aria-label={ariaLabel}
+      className={className}
+    />
+  );
 }

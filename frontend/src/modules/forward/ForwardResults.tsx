@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
-import { errorPlot, gridColumns, lossPlot, phasePlot, trajectoryGridPlot, trajectoryPlot } from "../../plots/charts";
-import { chartTokens, Plot } from "../../plots/Plot";
+import { useMemo, useRef, useState } from "react";
+import { errorPlot, gridColumns, lossPlot, phasePlot, statePanelPlot, trajectoryPlot } from "../../plots/charts";
+import { chartTokens, downloadPlot, Plot } from "../../plots/Plot";
 import { api } from "../../services/api";
 import { download, slug } from "../../project";
 import type { ForwardResult, ForwardRunRequest } from "../../types/api";
@@ -66,14 +66,27 @@ export function ForwardResults({
   );
   const grid = layout === "grid" && shownStates.length > 1;
   const trajSpec = useMemo(
-    () =>
-      grid
-        ? trajectoryGridPlot(t, result.t, shownStates, names, { refLabel: "reference, BDF" })
-        : trajectoryPlot(t, result.t, shownStates, names, { refLabel: "reference, BDF" }),
+    () => trajectoryPlot(t, result.t, shownStates, names, { refLabel: "reference, BDF" }),
+    [t, result, shownStates, names],
+  );
+  // per state: one figure per state (legend on the first), each saved on its own
+  const panelSpecs = useMemo(
+    () => (grid ? shownStates.map((s, k) => statePanelPlot(t, result.t, s, names, { refLabel: "reference, BDF", legend: k === 0 })) : []),
     [t, result, shownStates, names, grid],
   );
-  // each grid row gets at least 230 px; the panel scrolls when they do not fit
-  const gridRows = grid ? Math.ceil(shownStates.length / gridColumns(shownStates.length)) : 1;
+  const panelEls = useRef<Record<string, HTMLDivElement | null>>({});
+  const [saving, setSaving] = useState(false);
+  const saveAll = async (format: "png" | "svg") => {
+    setSaving(true);
+    try {
+      for (const s of shownStates) {
+        const el = panelEls.current[s.name];
+        if (el) await downloadPlot(el, `${base}_${slug(s.name)}`, format);
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
   const phaseSpec = useMemo(() => (names.length >= 2 ? phasePlot(t, result, phase[0], phase[1]) : null), [t, result, phase, names]);
   const lossSpec = useMemo(() => lossPlot(t, result.history), [t, result]);
   const errSpec = useMemo(() => errorPlot(t, result), [t, result]);
@@ -157,14 +170,56 @@ export function ForwardResults({
                 </div>
               </div>
             )}
-            <div className="flex-1 min-h-0" style={grid ? { minHeight: `${gridRows * 230 + 40}px` } : undefined}>
-              <Plot
-                spec={trajSpec}
-                filename={`${base}_trajectories${grid ? "_per_state" : ""}`}
-                ariaLabel={grid ? "One trajectory panel per state" : "State trajectories versus time"}
-                themeKey={themeKey}
-              />
-            </div>
+            {grid ? (
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center gap-1 text-[12px] text-ink-2">
+                  <span className="mr-1">Save every panel as a separate file:</span>
+                  <Button variant="ghost" disabled={saving} onClick={() => saveAll("png")}>
+                    <Icon d={ICONS.download} /> All PNG
+                  </Button>
+                  <Button variant="ghost" disabled={saving} onClick={() => saveAll("svg")}>
+                    <Icon d={ICONS.download} /> All SVG
+                  </Button>
+                </div>
+                <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${gridColumns(shownStates.length)}, minmax(0, 1fr))` }}>
+                  {shownStates.map((s, k) => (
+                    <figure key={s.name} className="relative group border border-line rounded">
+                      <Plot
+                        spec={panelSpecs[k]}
+                        filename={`${base}_${slug(s.name)}`}
+                        ariaLabel={`Trajectory of ${s.name}`}
+                        themeKey={themeKey}
+                        className="w-full h-[270px]"
+                        elementRef={(el) => {
+                          panelEls.current[s.name] = el;
+                        }}
+                      />
+                      <figcaption className="absolute top-1 right-1 flex gap-0.5 opacity-60 group-hover:opacity-100 focus-within:opacity-100">
+                        {(["png", "svg"] as const).map((f) => (
+                          <button
+                            key={f}
+                            type="button"
+                            className="h-5 px-1.5 rounded text-[10.5px] uppercase bg-panel border border-line text-ink-2 hover:text-ink cursor-pointer"
+                            title={`Save ${s.name} as ${f.toUpperCase()}`}
+                            aria-label={`Save ${s.name} panel as ${f.toUpperCase()}`}
+                            onClick={() => {
+                              const el = panelEls.current[s.name];
+                              if (el) downloadPlot(el, `${base}_${slug(s.name)}`, f);
+                            }}
+                          >
+                            {f}
+                          </button>
+                        ))}
+                      </figcaption>
+                    </figure>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 min-h-0">
+                <Plot spec={trajSpec} filename={`${base}_trajectories`} ariaLabel="State trajectories versus time" themeKey={themeKey} />
+              </div>
+            )}
           </div>
         )}
 

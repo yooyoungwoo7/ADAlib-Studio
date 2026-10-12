@@ -66,66 +66,27 @@ export function gridColumns(n: number) {
   return n <= 3 ? n : n === 4 ? 2 : n <= 6 ? 3 : 4;
 }
 
-/** One panel per state (reference and ADA overlaid), titled with the state name. */
-export function trajectoryGridPlot(
+/** One state's panel for the per-state grid: its own figure, so it can be saved on its own. */
+export function statePanelPlot(
   t: Tokens,
   time: Series,
-  states: { name: string; y: Series; ref?: Series | null }[],
+  state: { name: string; y: Series; ref?: Series | null },
   allNames: string[],
-  opts: { refLabel?: string } = {},
+  opts: { refLabel?: string; legend?: boolean } = {},
 ): PlotSpec {
-  const n = Math.max(states.length, 1);
-  const cols = gridColumns(n);
-  const rows = Math.ceil(n / cols);
-  const gx = 0.06; // horizontal gap (fraction of the figure)
-  const gy = rows > 1 ? 0.14 / (rows - 1) + 0.06 : 0; // room for the next row's title and x labels
-  const w = (1 - gx * (cols - 1)) / cols;
-  const h = (1 - gy * (rows - 1)) / rows;
+  const spec = trajectoryPlot(t, time, [state], allNames, opts);
   const base = baseLayout(t);
-  const data: Record<string, unknown>[] = [];
-  const axes: Record<string, unknown> = {};
-  const annotations: Record<string, unknown>[] = [];
-
-  states.forEach((s, k) => {
-    const col = k % cols;
-    const row = Math.floor(k / cols);
-    const id = k === 0 ? "" : String(k + 1);
-    const x0 = col * (w + gx);
-    const y1 = 1 - row * (h + gy);
-    axes[`xaxis${id}`] = { ...base.xaxis, domain: [x0, x0 + w], anchor: `y${id}`, title: { ...base.xaxis.title, text: "t", standoff: 2 }, automargin: false };
-    axes[`yaxis${id}`] = { ...base.yaxis, domain: [y1 - h, y1], anchor: `x${id}` };
-    annotations.push({
-      text: s.name, xref: "paper", yref: "paper", x: x0 + w / 2, y: y1, xanchor: "center", yanchor: "bottom",
-      showarrow: false, font: { size: t.paper ? 15 : 13, color: t.paper ? "#000" : t.ink },
-    });
-    const c = stateColor(t, allNames.indexOf(s.name));
-    const ada = {
-      type: "scatter", mode: "lines", x: time, y: s.y, xaxis: `x${id}`, yaxis: `y${id}`,
-      name: "ADA", legendgroup: "ada", showlegend: k === 0,
-      line: predLine(t, c, !!s.ref), hovertemplate: `${s.name}: %{y:.6g}<extra></extra>`,
-    };
-    if (!s.ref) {
-      data.push(ada);
-      return;
-    }
-    const ref = {
-      type: "scatter", mode: "lines", x: time, y: s.ref, xaxis: `x${id}`, yaxis: `y${id}`,
-      name: opts.refLabel ?? "reference", legendgroup: "ref", showlegend: !data.some((d) => d.legendgroup === "ref"),
-      line: refLine(t, c), opacity: t.paper ? 1 : 0.85, hovertemplate: `${s.name} ref: %{y:.6g}<extra></extra>`,
-    };
-    if (t.paper) data.push(ref, ada);
-    else data.push(ada, ref);
-  });
-
+  for (const d of spec.data) d.name = d.name === `${state.name} (ADA)` ? "ADA" : opts.refLabel ?? "reference";
   return {
-    data,
+    data: spec.data,
     layout: baseLayout(t, {
-      ...axes,
-      annotations,
-      hovermode: "closest",
-      showlegend: true,
-      margin: { ...(base.margin as object), t: 64 },
-      legend: { ...(base.legend as object), y: 1, yanchor: "top", yref: "container", x: 0 },
+      title: { text: state.name, x: 0.5, xanchor: "center", y: 0.98, yanchor: "top", font: { size: t.paper ? 15 : 13, color: t.paper ? "#000" : t.ink } },
+      xaxis: { ...base.xaxis, title: { ...base.xaxis.title, text: "t", standoff: 2 } },
+      yaxis: { ...base.yaxis },
+      showlegend: !!opts.legend,
+      margin: { ...(base.margin as object), t: 34, r: 12 },
+      // inside the axes, top left, like a matplotlib panel legend
+      legend: { ...(base.legend as object), orientation: "v", x: 0.02, y: 0.98, xanchor: "left", yanchor: "top", bgcolor: t.paper ? "rgba(255,255,255,0.85)" : t.surface },
     }),
   };
 }
