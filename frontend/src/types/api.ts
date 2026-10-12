@@ -540,6 +540,40 @@ export interface MPCResult {
 
 export type JobResult = ForwardResult | OperatorTrainResult | OperatorInferResult | InverseResult | MPCResult | MPCTrainResult;
 
+// ── figure style (backend: schemas/plot_style.py); pt for fonts, cm for export ──
+export type LineDash = "solid" | "dash" | "dot" | "dashdot" | "longdash";
+export interface PlotStyle {
+  font_family?: string;
+  font_size?: number;
+  title_font_size?: number;
+  tick_font_size?: number;
+  legend_font_size?: number;
+  line_width?: number;
+  colors?: Record<string, string>;
+  dashes?: Record<string, LineDash>;
+  show_reference?: boolean;
+  ref_color?: string;
+  ref_line_width?: number;
+  ref_dash?: LineDash;
+  title?: string;
+  x_title?: string;
+  y_title?: string;
+  y_titles?: Record<string, string>;
+  panel_titles?: Record<string, string>;
+  x_range?: [number, number];
+  y_range?: [number, number];
+  log_y?: boolean;
+  grid?: boolean;
+  legend_position?: "top" | "top-left" | "top-right" | "bottom-left" | "bottom-right" | "right" | "hidden";
+  legend_box?: boolean;
+  ada_label?: string;
+  ref_label?: string;
+  export_width_cm?: number;
+  export_height_cm?: number;
+  export_dpi?: number;
+  export_format?: "png" | "svg";
+}
+
 // ── natural-language assistant (/api/assist) ─────────────────────────
 export type AssistProvider = "anthropic" | "openai";
 
@@ -560,6 +594,7 @@ export interface AssistForwardRequest {
   current_system?: SystemSpec;
   current_time?: TimeSpan;
   current_options?: ForwardOptions;
+  current_plot_style?: PlotStyle;
   history: AssistMessage[];
   language?: string;
 }
@@ -568,6 +603,7 @@ export interface AssistForwardResponse {
   system: SystemSpec;
   time: TimeSpan;
   options: ForwardOptions;
+  plot_style: PlotStyle;
   reply: string;
   provider: AssistProvider;
   model: string;

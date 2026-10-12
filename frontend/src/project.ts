@@ -18,6 +18,7 @@ import type {
   BuiltinOperatorSystem,
   SystemSpec,
   TimeSpan,
+  PlotStyle,
 } from "./types/api";
 
 export const PROJECT_FORMAT = "adalib-studio-project";
@@ -29,6 +30,8 @@ export interface ForwardProject {
   time: TimeSpan;
   options: ForwardOptions;
   reference: boolean;
+  /** figure style for the trajectory plots (set by the AI assistant); empty = Paper/Screen look */
+  plotStyle?: PlotStyle;
 }
 
 export interface OperatorProject {
@@ -574,6 +577,7 @@ export function parseProjectFile(text: string, defaults: ForwardOptions): Projec
         time: (fwdRaw.time as TimeSpan) ?? { t0: 0, t1: 1 },
         options: { ...defaults, ...((fwdRaw.options as Partial<ForwardOptions>) ?? {}) },
         reference: (fwdRaw.reference as boolean) ?? true,
+        plotStyle: (fwdRaw.plotStyle as PlotStyle | undefined) ?? undefined,
       },
       operator: {
         ...base.operator,

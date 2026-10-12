@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent } from "react";
 import { api } from "../../services/api";
-import type { AssistImage, AssistProvider, AssistStatus, ForwardOptions, SystemSpec, TimeSpan } from "../../types/api";
+import type { AssistImage, AssistProvider, AssistStatus, ForwardOptions, PlotStyle, SystemSpec, TimeSpan } from "../../types/api";
 import { Button, Field, Section } from "../common/controls";
 
 const MAX_IMAGES = 3;
@@ -51,12 +51,28 @@ export interface Definition {
   system: SystemSpec;
   time: TimeSpan;
   options: ForwardOptions;
+  plotStyle?: PlotStyle;
 }
+
+/** Key-order independent JSON, so {a, b} and {b, a} compare equal. */
+const canon = (v: unknown): string =>
+  v && typeof v === "object" && !Array.isArray(v)
+    ? `{${Object.keys(v as object).sort().map((k) => `${JSON.stringify(k)}:${canon((v as Record<string, unknown>)[k])}`).join(",")}}`
+    : Array.isArray(v)
+      ? `[${v.map(canon).join(",")}]`
+      : JSON.stringify(v ?? null);
 
 const OPTION_KEYS = (o: ForwardOptions) => Object.keys(o).sort() as (keyof ForwardOptions)[];
 const sameDefinition = (a: Definition, b: Definition) =>
   JSON.stringify([a.system.name, a.system.states, a.system.parameters, a.system.equations, a.time.t0, a.time.t1, OPTION_KEYS(a.options).map((k) => a.options[k])]) ===
-  JSON.stringify([b.system.name, b.system.states, b.system.parameters, b.system.equations, b.time.t0, b.time.t1, OPTION_KEYS(b.options).map((k) => b.options[k])]);
+    JSON.stringify([b.system.name, b.system.states, b.system.parameters, b.system.equations, b.time.t0, b.time.t1, OPTION_KEYS(b.options).map((k) => b.options[k])]) &&
+  canon(a.plotStyle ?? {}) === canon(b.plotStyle ?? {});
+
+/** "colors, line_width" */
+const styleChanges = (a: PlotStyle | undefined, b: PlotStyle | undefined) => {
+  const keys = new Set([...Object.keys(a ?? {}), ...Object.keys(b ?? {})]) as Set<keyof PlotStyle>;
+  return [...keys].filter((k) => canon(a?.[k]) !== canon(b?.[k])).join(", ");
+};
 
 /** "n_seg 50→100, use_lbfgs true→false" */
 const optionChanges = (a: ForwardOptions, b: ForwardOptions) =>
@@ -76,7 +92,11 @@ export interface ChatEntry {
   images?: string[]; // thumbnails of what the user attached
 }
 
-const EXAMPLES = ["Damped pendulum, gamma = 0.5, for 10 s", "Lorenz system with the classic parameters", "Use 100 segments and turn off L-BFGS"];
+const EXAMPLES = [
+  "Damped pendulum, gamma = 0.5, for 10 s",
+  "Use 100 segments and turn off L-BFGS",
+  "Paper figure: Times 10 pt, first state in red, x axis 'Time [s]', 8 x 6 cm at 600 dpi",
+];
 
 /**
  * "Describe your system" chat for the Forward module. The backend asks the configured LLM for a
@@ -87,6 +107,7 @@ export function AssistChat({
   system,
   time,
   options,
+  plotStyle,
   onApply,
   chat,
   setChat,
@@ -95,6 +116,7 @@ export function AssistChat({
   system: SystemSpec;
   time: TimeSpan;
   options: ForwardOptions;
+  plotStyle?: PlotStyle;
   onApply: (d: Definition) => void;
   chat: ChatEntry[];
   setChat: (update: (c: ChatEntry[]) => ChatEntry[]) => void;
@@ -159,22 +181,25 @@ export function AssistChat({
         current_system: system,
         current_time: time,
         current_options: options,
+        current_plot_style: plotStyle,
         history,
         language: navigator.language,
       });
-      const before: Definition = { system, time, options };
-      const after: Definition = { system: r.system, time: r.time, options: r.options };
+      const before: Definition = { system, time, options, plotStyle };
+      const newStyle = Object.keys(r.plot_style ?? {}).length ? r.plot_style : undefined;
+      const after: Definition = { system: r.system, time: r.time, options: r.options, plotStyle: newStyle };
       const changed = !sameDefinition(before, after);
       if (changed) onApply(after);
       const states = r.system.states.map((s) => s.name).join(", ");
       const opts = optionChanges(options, r.options);
+      const figure = styleChanges(plotStyle, newStyle);
       setChat((c) => [
         ...c,
         {
           role: "assistant",
           content: r.reply || `Set up ${r.system.name}.`,
           meta: changed
-            ? `${r.system.name} · states ${states} · t ∈ [${r.time.t0}, ${r.time.t1}]${opts ? ` · solver: ${opts}` : ""} · ${r.model}${r.attempts > 1 ? ` · ${r.attempts} tries` : ""}`
+            ? `${r.system.name} · states ${states} · t ∈ [${r.time.t0}, ${r.time.t1}]${opts ? ` · solver: ${opts}` : ""}${figure ? ` · figure: ${figure}` : ""} · ${r.model}${r.attempts > 1 ? ` · ${r.attempts} tries` : ""}`
             : `no change to the editor · ${r.model}`,
           before: changed ? before : undefined,
           after: changed ? after : undefined,
@@ -223,8 +248,8 @@ export function AssistChat({
           onDrop={onDrop}
         >
           <p className="text-[11.5px] text-muted leading-snug">
-            Describe the system or the solver settings in words, or attach a picture of the equations (paste, drop or 📎).
-            The answer fills the editor and the solver panel (checked before applying); review it, then press Run.
+            Describe the system, the solver settings or the figure style in words, or attach a picture of the equations
+            (paste, drop or 📎). Changes are checked before they apply; figure changes show at once, the rest after Run.
           </p>
           <div ref={listRef} className="flex flex-col gap-1.5 max-h-[300px] overflow-y-auto" aria-live="polite">
             {chat.length === 0 && (
@@ -264,7 +289,7 @@ export function AssistChat({
                       Undo this change
                     </button>
                   )}
-                  {m.after && !sameDefinition(m.after, { system, time, options }) && (
+                  {m.after && !sameDefinition(m.after, { system, time, options, plotStyle }) && (
                     <button
                       type="button"
                       className="mt-1 text-[11.5px] text-ink-2 underline cursor-pointer hover:text-ink"

@@ -117,6 +117,28 @@ def test_solver_options_are_merged_and_checked(client, monkeypatch):
     assert out["options"]["n_seg"] == 50 and out["options"]["Nt_total"] == 2500
 
 
+def test_plot_style_only_request_keeps_the_system(client, monkeypatch):
+    client.put("/api/assist/settings", json={"provider": "openai", "api_key": "sk-abcdefgh"})
+    cur = PENDULUM["system"]
+    style0 = {"line_width": 1.5, "colors": {"omega": "blue"}, "export_dpi": 300}
+    bad = {"reply": "x", "plot_style": {"colors": {"x": "red"}}}                       # no state x
+    worse = {"reply": "x", "plot_style": {"colours": {"theta": "red"}}}               # unknown key
+    good = {"reply": "θ is red now", "plot_style": {"colors": {"theta": "#d62728"}, "line_width": 2,
+                                                    "export_dpi": None, "legend_position": "top-right"}}
+    calls = fake_llm(monkeypatch, [json.dumps(bad), json.dumps(worse), json.dumps(good)])
+    out = client.post("/api/assist/forward", json={
+        "prompt": "theta in red", "current_system": cur, "current_time": {"t0": 0, "t1": 7},
+        "current_plot_style": style0}).json()
+    assert out["attempts"] == 3 and out["system"]["name"] == "pendulum" and out["time"]["t1"] == 7
+    assert out["plot_style"] == {"line_width": 2, "colors": {"omega": "blue", "theta": "#d62728"},
+                                 "legend_position": "top-right"}                      # export_dpi reset
+    assert "unknown state" in calls[1]["messages"][-1]["content"] and "colours" in calls[2]["messages"][-1]["content"]
+    assert '"export_dpi": 300' in calls[0]["messages"][-1]["content"]
+    fake_llm(monkeypatch, [json.dumps({"reply": "x", "plot_style": {"colors": {"theta": "nope!"}}})] * 3)
+    r = client.post("/api/assist/forward", json={"prompt": "x", "current_system": cur})
+    assert r.status_code == 422
+
+
 def test_describe_gives_up(client, monkeypatch):
     client.put("/api/assist/settings", json={"provider": "openai", "api_key": "sk-abcdefgh"})
     fake_llm(monkeypatch, ["not json"] * llm_assist.MAX_ATTEMPTS)

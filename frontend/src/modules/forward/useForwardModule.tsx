@@ -47,6 +47,7 @@ export function useForwardModule(ctx: ModuleContext): ModuleView {
         time: jobRequest.time,
         options: { ...ctx.forwardDefaults, ...jobRequest.options },
         reference: jobRequest.reference,
+        plotStyle: pr.forward.plotStyle,
       },
     }));
     ctx.notify(`Inputs restored from run ${ctx.jobId}.`);
@@ -56,7 +57,7 @@ export function useForwardModule(ctx: ModuleContext): ModuleView {
     runLabel: "Run",
     blockReason,
     run: async () => (await api.runForward(forwardRequest(p))).job_id,
-    onExample: (ex) => ctx.setProject((pr) => ({ ...pr, forward: forwardFromExample(ex, ctx.forwardDefaults) })),
+    onExample: (ex) => ctx.setProject((pr) => ({ ...pr, forward: { ...forwardFromExample(ex, ctx.forwardDefaults), plotStyle: pr.forward.plotStyle } })),
     editor: (
       <SystemEditor
         system={p.system}
@@ -83,8 +84,17 @@ export function useForwardModule(ctx: ModuleContext): ModuleView {
           system={p.system}
           time={p.time}
           options={p.options}
-          onApply={({ system, time, options }) =>
-            ctx.setProject((pr) => ({ ...pr, name: system.name, forward: { ...pr.forward, system, time, options, exampleId: null } }))
+          plotStyle={p.plotStyle}
+          onApply={({ system, time, options, plotStyle }) =>
+            ctx.setProject((pr) => {
+              // a figure-only answer keeps the example selection
+              const same = JSON.stringify([pr.forward.system, pr.forward.time]) === JSON.stringify([system, time]);
+              return {
+                ...pr,
+                name: same ? pr.name : system.name,
+                forward: { ...pr.forward, system, time, options, plotStyle, exampleId: same ? pr.forward.exampleId : null },
+              };
+            })
           }
           chat={chat}
           setChat={setChat}
@@ -101,6 +111,8 @@ export function useForwardModule(ctx: ModuleContext): ModuleView {
           request={jobRequest}
           themeKey={ctx.themeKey}
           onRestore={jobRequest ? restore : undefined}
+          plotStyle={p.plotStyle}
+          onResetStyle={() => set({ plotStyle: undefined })}
         />
       ) : (
         <EmptyResults

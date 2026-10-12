@@ -210,7 +210,7 @@ export default function App() {
                 ...p,
                 name: r.system.name,
                 module: "forward",
-                forward: { exampleId: null, system: r.system, time: r.time, options: { ...forwardDefaults, ...r.options }, reference: r.reference },
+                forward: { exampleId: null, system: r.system, time: r.time, options: { ...forwardDefaults, ...r.options }, reference: r.reference, plotStyle: p.forward.plotStyle },
               }));
               setNotice(`Editor loaded from run ${id}.`);
             })

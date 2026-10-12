@@ -1,7 +1,8 @@
 // Reusable chart builders. Every series comes from a worker result (ADA output,
 // adalib's reference solve, or adalib's logged losses); derived quantities are
 // labelled as such.
-import type { ForwardResult, InverseResult, MPCResult, MPCRun, OperatorManifest, OperatorPrediction, OperatorTrainResult, StageRecord } from "../types/api";
+import type { PlotStyle, ForwardResult, InverseResult, MPCResult, MPCRun, OperatorManifest, OperatorPrediction, OperatorTrainResult, StageRecord } from "../types/api";
+import { applyTrajectoryStyle } from "./style";
 import { baseLayout, markerLine, predLine, refLine, type PlotSpec, type Tokens } from "./theme";
 
 type Series = (number | null)[];
@@ -16,7 +17,7 @@ export function trajectoryPlot(
   time: Series,
   states: { name: string; y: Series; ref?: Series | null }[],
   allNames: string[],
-  opts: { refLabel?: string; title?: string } = {},
+  opts: { refLabel?: string; title?: string; style?: PlotStyle } = {},
 ): PlotSpec {
   const data: Record<string, unknown>[] = [];
   for (const s of states) {
@@ -29,6 +30,7 @@ export function trajectoryPlot(
       name: `${s.name} (ADA)`,
       line: predLine(t, c, !!s.ref),
       hovertemplate: "%{y:.6g}",
+      meta: { state: s.name, kind: "ada" },
     };
     if (!s.ref) {
       data.push(ada);
@@ -46,12 +48,13 @@ export function trajectoryPlot(
       line: refLine(t, c),
       opacity: t.paper ? 1 : 0.85,
       hovertemplate: "%{y:.6g}",
+      meta: { state: s.name, kind: "ref" },
     };
     // paper: black reference underneath the dashed prediction
     if (t.paper) data.push(ref, ada);
     else data.push(ada, ref);
   }
-  return {
+  const spec = {
     data,
     layout: baseLayout(t, {
       xaxis: { ...baseLayout(t).xaxis, title: { text: "t", font: { color: t.ink2 } } },
@@ -59,6 +62,7 @@ export function trajectoryPlot(
       showlegend: true,
     }),
   };
+  return opts.style ? applyTrajectoryStyle(t, spec, opts.style) : spec;
 }
 
 /** Columns of the per-state grid: 1-3 states in one row, 4 as 2x2, then 3 or 4 per row. */
@@ -72,12 +76,12 @@ export function statePanelPlot(
   time: Series,
   state: { name: string; y: Series; ref?: Series | null },
   allNames: string[],
-  opts: { refLabel?: string; legend?: boolean } = {},
+  opts: { refLabel?: string; legend?: boolean; style?: PlotStyle } = {},
 ): PlotSpec {
-  const spec = trajectoryPlot(t, time, [state], allNames, opts);
+  const spec = trajectoryPlot(t, time, [state], allNames, { refLabel: opts.refLabel });
   const base = baseLayout(t);
   for (const d of spec.data) d.name = d.name === `${state.name} (ADA)` ? "ADA" : opts.refLabel ?? "reference";
-  return {
+  const panel = {
     data: spec.data,
     layout: baseLayout(t, {
       title: { text: state.name, x: 0.5, xanchor: "center", y: 0.98, yanchor: "top", font: { size: t.paper ? 15 : 13, color: t.paper ? "#000" : t.ink } },
@@ -89,6 +93,7 @@ export function statePanelPlot(
       legend: { ...(base.legend as object), orientation: "v", x: 0.02, y: 0.98, xanchor: "left", yanchor: "top", bgcolor: t.paper ? "rgba(255,255,255,0.85)" : t.surface },
     }),
   };
+  return opts.style ? applyTrajectoryStyle(t, panel, opts.style, state.name) : panel;
 }
 
 export function phasePlot(t: Tokens, r: ForwardResult, xName: string, yName: string): PlotSpec {

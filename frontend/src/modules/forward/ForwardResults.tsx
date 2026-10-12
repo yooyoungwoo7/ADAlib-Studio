@@ -1,9 +1,10 @@
 import { useMemo, useRef, useState } from "react";
 import { errorPlot, gridColumns, lossPlot, phasePlot, statePanelPlot, trajectoryPlot } from "../../plots/charts";
 import { chartTokens, downloadPlot, Plot } from "../../plots/Plot";
+import { exportOptions, exportSummary, isStyled } from "../../plots/style";
 import { api } from "../../services/api";
 import { download, slug } from "../../project";
-import type { ForwardResult, ForwardRunRequest } from "../../types/api";
+import type { ForwardResult, ForwardRunRequest, PlotStyle } from "../../types/api";
 import { Button, Icon, ICONS } from "../../components/common/controls";
 
 type Tab = "trajectories" | "phase" | "history" | "error" | "data" | "summary";
@@ -25,12 +26,17 @@ export function ForwardResults({
   request,
   themeKey,
   onRestore,
+  plotStyle,
+  onResetStyle,
 }: {
   jobId: string;
   result: ForwardResult;
   request: ForwardRunRequest | null;
   themeKey: string;
   onRestore?: () => void;
+  /** figure style from the AI assistant (trajectory plots) */
+  plotStyle?: PlotStyle;
+  onResetStyle?: () => void;
 }) {
   const names = result.system.state_names;
   const hasRef = !!result.reference?.y;
@@ -66,13 +72,15 @@ export function ForwardResults({
   );
   const grid = layout === "grid" && shownStates.length > 1;
   const trajSpec = useMemo(
-    () => trajectoryPlot(t, result.t, shownStates, names, { refLabel: "reference, BDF" }),
-    [t, result, shownStates, names],
+    () => trajectoryPlot(t, result.t, shownStates, names, { refLabel: "reference, BDF", style: plotStyle }),
+    [t, result, shownStates, names, plotStyle],
   );
+  const exp = useMemo(() => exportOptions(plotStyle), [plotStyle]);
+  const styled = isStyled(plotStyle);
   // per state: one figure per state (legend on the first), each saved on its own
   const panelSpecs = useMemo(
-    () => (grid ? shownStates.map((s, k) => statePanelPlot(t, result.t, s, names, { refLabel: "reference, BDF", legend: k === 0 })) : []),
-    [t, result, shownStates, names, grid],
+    () => (grid ? shownStates.map((s, k) => statePanelPlot(t, result.t, s, names, { refLabel: "reference, BDF", legend: k === 0, style: plotStyle })) : []),
+    [t, result, shownStates, names, grid, plotStyle],
   );
   const panelEls = useRef<Record<string, HTMLDivElement | null>>({});
   const [saving, setSaving] = useState(false);
@@ -81,7 +89,7 @@ export function ForwardResults({
     try {
       for (const s of shownStates) {
         const el = panelEls.current[s.name];
-        if (el) await downloadPlot(el, `${base}_${slug(s.name)}`, format);
+        if (el) await downloadPlot(el, `${base}_${slug(s.name)}`, { ...exp, format });
       }
     } finally {
       setSaving(false);
@@ -155,6 +163,16 @@ export function ForwardResults({
                     </button>
                   ))}
                 </div>
+                {styled && (
+                  <span className="inline-flex items-center gap-1.5 h-6 px-2 rounded bg-accent-soft text-ink text-[11.5px]" title="Figure style set by the AI assistant; saved with the project">
+                    Custom style{exportSummary(plotStyle) ? ` · export ${exportSummary(plotStyle)}` : ""}
+                    {onResetStyle && (
+                      <button type="button" className="underline cursor-pointer text-ink-2 hover:text-ink" onClick={onResetStyle}>
+                        Reset
+                      </button>
+                    )}
+                  </span>
+                )}
                 <div className="flex flex-wrap items-center gap-3" aria-label="Visible states">
                   {names.map((n, i) => (
                     <label key={n} className="flex items-center gap-1.5 cursor-pointer">
@@ -190,6 +208,7 @@ export function ForwardResults({
                         ariaLabel={`Trajectory of ${s.name}`}
                         themeKey={themeKey}
                         className="w-full h-[270px]"
+                        exportOptions={exp}
                         elementRef={(el) => {
                           panelEls.current[s.name] = el;
                         }}
@@ -204,7 +223,7 @@ export function ForwardResults({
                             aria-label={`Save ${s.name} panel as ${f.toUpperCase()}`}
                             onClick={() => {
                               const el = panelEls.current[s.name];
-                              if (el) downloadPlot(el, `${base}_${slug(s.name)}`, f);
+                              if (el) downloadPlot(el, `${base}_${slug(s.name)}`, { ...exp, format: f });
                             }}
                           >
                             {f}
@@ -217,7 +236,7 @@ export function ForwardResults({
               </div>
             ) : (
               <div className="flex-1 min-h-0">
-                <Plot spec={trajSpec} filename={`${base}_trajectories`} ariaLabel="State trajectories versus time" themeKey={themeKey} />
+                <Plot spec={trajSpec} filename={`${base}_trajectories`} ariaLabel="State trajectories versus time" themeKey={themeKey} exportOptions={exp} />
               </div>
             )}
           </div>

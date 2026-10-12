@@ -293,7 +293,11 @@ onto adalib.
 The **AI assistant** panel under Verification turns a sentence into a system
 definition: "damped pendulum with gamma = 0.5 for 10 s", then follow-ups such
 as "set mu to 3" or solver changes such as "100 segments, no L-BFGS" (checked
-like the solver panel, e.g. Nt_total divisible by n_seg). The backend sends the request, the system on screen and the
+like the solver panel, e.g. Nt_total divisible by n_seg), and figure styling
+for the Trajectories plots: "Times 10 pt, x1 in red, x axis 'Time [s]', legend
+top right, 8 x 6 cm at 600 dpi". Figure changes apply at once without a re-run,
+are saved with the project, set the size, dpi and format that PNG/SVG saving
+uses, and **Reset** next to the layout toggle restores the default look. The backend sends the request, the system on screen and the
 chat so far to Anthropic Claude or OpenAI, checks the answer with the equation
 parser (and asks again if it fails), and fills the editor. Nothing runs until
 you press **Run**; each answer has **Undo this change**. You can also attach up
