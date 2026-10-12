@@ -194,6 +194,18 @@ export default function App() {
             .jobRequest(id)
             .then(({ payload }) => {
               const r = payload as ForwardRunRequest;
+              const f = project.forward;
+              const same = JSON.stringify([f.system, f.time]) === JSON.stringify([r.system, r.time]);
+              if (same) return;
+              // an example can be replaced freely; a system built here (by hand or by the AI) only on confirmation
+              if (
+                f.exampleId === null &&
+                !window.confirm(
+                  `Load the inputs of run ${id} (${r.system.name}) into the editor?\n\n` +
+                    `The editor currently holds "${f.system.name}", which would be replaced. Choose Cancel to only view the run's results.`,
+                )
+              )
+                return;
               setProject((p) => ({
                 ...p,
                 name: r.system.name,

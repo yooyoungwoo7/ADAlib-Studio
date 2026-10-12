@@ -57,6 +57,7 @@ export interface ChatEntry {
   error?: boolean;
   meta?: string;
   before?: { system: SystemSpec; time: TimeSpan };
+  after?: { system: SystemSpec; time: TimeSpan };
   images?: string[]; // thumbnails of what the user attached
 }
 
@@ -156,6 +157,7 @@ export function AssistChat({
             ? `${r.system.name} · states ${states} · t ∈ [${r.time.t0}, ${r.time.t1}] · ${r.model}${r.attempts > 1 ? ` · ${r.attempts} tries` : ""}`
             : `no change to the editor · ${r.model}`,
           before: changed ? before : undefined,
+          after: changed ? { system: r.system, time: r.time } : undefined,
         },
       ]);
     } catch (e) {
@@ -236,11 +238,23 @@ export function AssistChat({
                 )}
                 {m.content}
                 {m.meta && <span className="block mt-1 text-[11px] text-muted font-mono break-words">{m.meta}</span>}
-                {m.before && (
-                  <button type="button" className="mt-1 text-[11.5px] text-ink-2 underline cursor-pointer hover:text-ink" onClick={() => undo(i)}>
-                    Undo this change
-                  </button>
-                )}
+                <span className="flex gap-3">
+                  {m.before && (
+                    <button type="button" className="mt-1 text-[11.5px] text-ink-2 underline cursor-pointer hover:text-ink" onClick={() => undo(i)}>
+                      Undo this change
+                    </button>
+                  )}
+                  {m.after && !sameDefinition(m.after, { system, time }) && (
+                    <button
+                      type="button"
+                      className="mt-1 text-[11.5px] text-ink-2 underline cursor-pointer hover:text-ink"
+                      title="The editor no longer shows this answer's system"
+                      onClick={() => onApply(m.after!.system, m.after!.time)}
+                    >
+                      Apply again
+                    </button>
+                  )}
+                </span>
               </div>
             ))}
             {busy && <p className="text-[12px] text-muted">Thinking…</p>}
