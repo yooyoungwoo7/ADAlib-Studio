@@ -70,3 +70,13 @@ def test_log_parser_formats():
     assert recs[1]["message"] == "CONVERGENCE: X"
     assert recs[2]["index"] == 1 and recs[2]["total"] == 5
     assert recs[3]["parts"] == [5e-06, 5e-06]
+
+
+def test_index_html_is_revalidated():
+    from app.config import FRONTEND_DIST
+    if not (FRONTEND_DIST / "index.html").is_file():
+        return
+    with TestClient(app) as c:
+        for path in ("/", "/index.html", "/some/client/route"):
+            r = c.get(path)
+            assert r.status_code == 200 and r.headers["cache-control"] == "no-cache", path
