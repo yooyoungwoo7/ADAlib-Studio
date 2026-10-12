@@ -70,6 +70,15 @@ def test_describe_retries_until_valid(client, monkeypatch):
     assert "invalid" in calls[1]["messages"][-1]["content"] and calls[0]["key"] == "sk-ant-abcdefgh"
 
 
+def test_reply_language_and_broken_escapes(client, monkeypatch):
+    client.put("/api/assist/settings", json={"provider": "openai", "api_key": "sk-abcdefgh"})
+    ans = {**PENDULUM, "reply": "J'ai pos\u00e9 \u0003b8' = \u0003c9."}
+    calls = fake_llm(monkeypatch, [json.dumps(ans)])
+    out = client.post("/api/assist/forward", json={"prompt": "hello", "language": "ko-KR"}).json()
+    assert out["reply"] == "J'ai posé θ' = ω."
+    assert "User interface language: ko-KR." in calls[0]["messages"][-1]["content"]
+
+
 def test_describe_gives_up(client, monkeypatch):
     client.put("/api/assist/settings", json={"provider": "openai", "api_key": "sk-abcdefgh"})
     fake_llm(monkeypatch, ["not json"] * llm_assist.MAX_ATTEMPTS)

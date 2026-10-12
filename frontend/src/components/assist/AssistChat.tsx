@@ -56,7 +56,7 @@ export function AssistChat({
     const history = chat.filter((m) => !m.error).slice(-10).map(({ role, content }) => ({ role, content }));
     setChat((c) => [...c, { role: "user", content: text }]);
     try {
-      const r = await api.assistForward({ prompt: text, current_system: system, current_time: time, history });
+      const r = await api.assistForward({ prompt: text, current_system: system, current_time: time, history, language: navigator.language });
       const before = { system, time };
       onApply(r.system, r.time);
       const states = r.system.states.map((s) => s.name).join(", ");

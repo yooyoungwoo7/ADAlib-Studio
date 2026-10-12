@@ -554,6 +554,7 @@ export interface AssistForwardRequest {
   current_system?: SystemSpec;
   current_time?: TimeSpan;
   history: AssistMessage[];
+  language?: string;
 }
 
 export interface AssistForwardResponse {
