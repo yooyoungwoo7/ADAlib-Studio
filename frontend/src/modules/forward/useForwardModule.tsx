@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AssistChat, type ChatEntry } from "../../components/assist/AssistChat";
 import { ForwardConfig } from "../../components/configuration/ForwardConfig";
 import { SystemEditor } from "../../components/equations/SystemEditor";
@@ -6,9 +6,22 @@ import { EmptyResults } from "../../components/common/EmptyResults";
 import { useSystemValidation } from "../../hooks/hooks";
 import { forwardFromExample, forwardRequest, localIssues, type ForwardProject } from "../../project";
 import { api } from "../../services/api";
-import type { ForwardRunRequest } from "../../types/api";
+import type { ForwardRunRequest, PlotStyle } from "../../types/api";
 import { backendBlock, type ModuleContext, type ModuleView } from "../types";
 import { ForwardResults } from "./ForwardResults";
+
+// The figure style is remembered per browser (like the theme), so it survives closing Studio.
+// Storage can be unavailable (private mode); the project file still carries the style.
+const STYLE_KEY = "adalib-studio-figure-style";
+function savedStyle(): PlotStyle | undefined {
+  try {
+    const raw = localStorage.getItem(STYLE_KEY);
+    const s = raw ? JSON.parse(raw) : null;
+    return s && typeof s === "object" && !Array.isArray(s) && Object.keys(s).length ? (s as PlotStyle) : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export function useForwardModule(ctx: ModuleContext): ModuleView {
   const p = ctx.project.forward;
@@ -19,6 +32,29 @@ export function useForwardModule(ctx: ModuleContext): ModuleView {
       ...pr,
       forward: { ...pr.forward, ...patch, exampleId: patch.system || patch.time ? null : pr.forward.exampleId },
     }));
+
+  // restore the remembered figure style once, then keep the browser copy in step with the project
+  const styleRestored = useRef(false);
+  useEffect(() => {
+    if (styleRestored.current) return;
+    styleRestored.current = true;
+    const s = savedStyle();
+    if (s && !p.plotStyle) set({ plotStyle: s });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const styleSynced = useRef(false);
+  useEffect(() => {
+    if (!styleSynced.current) {
+      styleSynced.current = true; // the first render has not seen the restored style yet
+      return;
+    }
+    try {
+      if (p.plotStyle && Object.keys(p.plotStyle).length) localStorage.setItem(STYLE_KEY, JSON.stringify(p.plotStyle));
+      else localStorage.removeItem(STYLE_KEY);
+    } catch {
+      /* not remembered */
+    }
+  }, [p.plotStyle]);
 
   // AI assistant chat; kept here so it survives switching modules
   const [chat, setChat] = useState<ChatEntry[]>([]);

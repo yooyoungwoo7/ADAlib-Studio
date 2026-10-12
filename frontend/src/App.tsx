@@ -68,7 +68,7 @@ export default function App() {
         setProject((p) => ({
           ...p,
           name: first?.title ?? p.name,
-          forward: first ? forwardFromExample(first, forwardDefaults) : p.forward,
+          forward: first ? { ...forwardFromExample(first, forwardDefaults), plotStyle: p.forward.plotStyle } : p.forward,
           inverse: firstInv ? inverseFromExample(firstInv) : p.inverse,
           mpc: firstMpc ? mpcFromExample(firstMpc, p.mpc) : p.mpc,
           operator: firstOp ? { ...p.operator, exampleId: firstOp.id, system: structuredClone(firstOp.system), n_seg: firstOp.operator?.n_seg ?? p.operator.n_seg, t_final: firstOp.operator?.t_final ?? p.operator.t_final } : p.operator,
