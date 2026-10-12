@@ -295,7 +295,9 @@ definition: "damped pendulum with gamma = 0.5 for 10 s", then follow-ups such
 as "set mu to 3". The backend sends the request, the system on screen and the
 chat so far to Anthropic Claude or OpenAI, checks the answer with the equation
 parser (and asks again if it fails), and fills the editor. Nothing runs until
-you press **Run**; each answer has **Undo this change**.
+you press **Run**; each answer has **Undo this change**. You can also attach up
+to three pictures of the equations (📎, paste a screenshot with Ctrl+V, or drop
+a file); the model transcribes them, and any text refines the request.
 
 Open **Settings** in the panel to pick the provider, paste an API key and
 optionally change the model (defaults: `claude-haiku-5-5`, `gpt-5.4-mini`).

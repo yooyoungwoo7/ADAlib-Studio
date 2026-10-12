@@ -79,6 +79,27 @@ def test_reply_language_and_broken_escapes(client, monkeypatch):
     assert "User interface language: ko-KR." in calls[0]["messages"][-1]["content"]
 
 
+def test_images_reach_both_providers(client, monkeypatch):
+    sent = []
+    monkeypatch.setattr(llm_assist, "_post", lambda url, headers, body: sent.append(body) or (
+        {"content": [{"type": "text", "text": json.dumps(PENDULUM)}]} if url.endswith("/v1/messages")
+        else {"choices": [{"message": {"content": json.dumps(PENDULUM)}}]}))
+    img = {"media_type": "image/png", "data": "iVBORw0KGgo="}
+    for provider in ("anthropic", "openai"):
+        client.put("/api/assist/settings", json={"provider": provider, "api_key": "sk-abcdefgh"})
+        r = client.post("/api/assist/forward", json={"prompt": "", "images": [img],
+                                                     "history": [{"role": "user", "content": "earlier"}]})
+        assert r.status_code == 200, r.text
+    ant, oai = sent
+    assert ant["messages"][0] == {"role": "user", "content": "earlier"}          # history stays text
+    blocks = ant["messages"][-1]["content"]
+    assert blocks[0]["source"] == {"type": "base64", "media_type": "image/png", "data": "iVBORw0KGgo="}
+    assert "shown in the image" in blocks[-1]["text"]
+    parts = oai["messages"][-1]["content"]
+    assert parts[1]["image_url"]["url"] == "data:image/png;base64,iVBORw0KGgo=" and oai["messages"][0]["role"] == "system"
+    assert client.post("/api/assist/forward", json={"prompt": " "}).status_code == 422   # nothing to do
+
+
 def test_describe_gives_up(client, monkeypatch):
     client.put("/api/assist/settings", json={"provider": "openai", "api_key": "sk-abcdefgh"})
     fake_llm(monkeypatch, ["not json"] * llm_assist.MAX_ATTEMPTS)

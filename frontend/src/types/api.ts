@@ -548,8 +548,14 @@ export interface AssistMessage {
   content: string;
 }
 
+export interface AssistImage {
+  media_type: "image/png" | "image/jpeg" | "image/webp" | "image/gif";
+  data: string; // base64, no data: prefix
+}
+
 export interface AssistForwardRequest {
   prompt: string;
+  images?: AssistImage[];
   provider?: AssistProvider;
   current_system?: SystemSpec;
   current_time?: TimeSpan;
