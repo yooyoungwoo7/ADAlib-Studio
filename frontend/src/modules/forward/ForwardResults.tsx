@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { errorPlot, lossPlot, phasePlot, trajectoryPlot } from "../../plots/charts";
+import { errorPlot, gridColumns, lossPlot, phasePlot, trajectoryGridPlot, trajectoryPlot } from "../../plots/charts";
 import { chartTokens, Plot } from "../../plots/Plot";
 import { api } from "../../services/api";
 import { download, slug } from "../../project";
@@ -7,6 +7,17 @@ import type { ForwardResult, ForwardRunRequest } from "../../types/api";
 import { Button, Icon, ICONS } from "../../components/common/controls";
 
 type Tab = "trajectories" | "phase" | "history" | "error" | "data" | "summary";
+type TrajLayout = "combined" | "grid";
+
+// remembered per browser; storage can be unavailable (private mode), so never rely on it
+const LAYOUT_KEY = "adalib-studio-trajectory-layout";
+function savedLayout(): TrajLayout {
+  try {
+    return localStorage.getItem(LAYOUT_KEY) === "grid" ? "grid" : "combined";
+  } catch {
+    return "combined";
+  }
+}
 
 export function ForwardResults({
   jobId,
@@ -33,6 +44,15 @@ export function ForwardResults({
   ];
   const [tab, setTab] = useState<Tab>("trajectories");
   const [visible, setVisible] = useState<string[]>(names);
+  const [layout, setLayoutState] = useState<TrajLayout>(savedLayout);
+  const setLayout = (l: TrajLayout) => {
+    setLayoutState(l);
+    try {
+      localStorage.setItem(LAYOUT_KEY, l);
+    } catch {
+      /* not persisted */
+    }
+  };
   const [phase, setPhase] = useState<[string, string]>([names[0], names[1] ?? names[0]]);
   const base = `${slug(result.system.name)}_${jobId}`;
 
@@ -40,17 +60,20 @@ export function ForwardResults({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const t = useMemo(() => chartTokens(), [themeKey]);
 
+  const shownStates = useMemo(
+    () => names.filter((n) => visible.includes(n)).map((n) => ({ name: n, y: result.y[n], ref: result.reference?.y?.[n] ?? null })),
+    [result, visible, names],
+  );
+  const grid = layout === "grid" && shownStates.length > 1;
   const trajSpec = useMemo(
     () =>
-      trajectoryPlot(
-        t,
-        result.t,
-        names.filter((n) => visible.includes(n)).map((n) => ({ name: n, y: result.y[n], ref: result.reference?.y?.[n] ?? null })),
-        names,
-        { refLabel: "reference, BDF" },
-      ),
-    [t, result, visible, names],
+      grid
+        ? trajectoryGridPlot(t, result.t, shownStates, names, { refLabel: "reference, BDF" })
+        : trajectoryPlot(t, result.t, shownStates, names, { refLabel: "reference, BDF" }),
+    [t, result, shownStates, names, grid],
   );
+  // each grid row gets at least 230 px; the panel scrolls when they do not fit
+  const gridRows = grid ? Math.ceil(shownStates.length / gridColumns(shownStates.length)) : 1;
   const phaseSpec = useMemo(() => (names.length >= 2 ? phasePlot(t, result, phase[0], phase[1]) : null), [t, result, phase, names]);
   const lossSpec = useMemo(() => lossPlot(t, result.history), [t, result]);
   const errSpec = useMemo(() => errorPlot(t, result), [t, result]);
@@ -100,22 +123,47 @@ export function ForwardResults({
         {tab === "trajectories" && (
           <div className="flex flex-col h-full min-h-[300px] gap-2">
             {names.length > 1 && (
-              <div className="flex flex-wrap items-center gap-3 text-[12px]" aria-label="Visible states">
-                {names.map((n, i) => (
-                  <label key={n} className="flex items-center gap-1.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={visible.includes(n)}
-                      onChange={(e) => setVisible(e.target.checked ? names.filter((x) => x === n || visible.includes(x)) : visible.filter((x) => x !== n))}
-                    />
-                    <span className="inline-block w-3 h-0.5" style={{ background: `var(--series-${(i % 8) + 1})` }} aria-hidden />
-                    {n}
-                  </label>
-                ))}
+              <div className="flex flex-wrap items-center gap-3 text-[12px]">
+                <div className="inline-flex rounded border border-line-strong overflow-hidden" role="group" aria-label="Trajectory layout">
+                  {(
+                    [
+                      ["combined", "One plot"],
+                      ["grid", "Per state"],
+                    ] as [TrajLayout, string][]
+                  ).map(([id, label]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      aria-pressed={layout === id}
+                      onClick={() => setLayout(id)}
+                      className={`h-6 px-2 text-[12px] cursor-pointer ${layout === id ? "bg-accent text-on-accent" : "bg-panel text-ink-2 hover:bg-panel-2"}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex flex-wrap items-center gap-3" aria-label="Visible states">
+                  {names.map((n, i) => (
+                    <label key={n} className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={visible.includes(n)}
+                        onChange={(e) => setVisible(e.target.checked ? names.filter((x) => x === n || visible.includes(x)) : visible.filter((x) => x !== n))}
+                      />
+                      <span className="inline-block w-3 h-0.5" style={{ background: `var(--series-${(i % 8) + 1})` }} aria-hidden />
+                      {n}
+                    </label>
+                  ))}
+                </div>
               </div>
             )}
-            <div className="flex-1 min-h-0">
-              <Plot spec={trajSpec} filename={`${base}_trajectories`} ariaLabel="State trajectories versus time" themeKey={themeKey} />
+            <div className="flex-1 min-h-0" style={grid ? { minHeight: `${gridRows * 230 + 40}px` } : undefined}>
+              <Plot
+                spec={trajSpec}
+                filename={`${base}_trajectories${grid ? "_per_state" : ""}`}
+                ariaLabel={grid ? "One trajectory panel per state" : "State trajectories versus time"}
+                themeKey={themeKey}
+              />
             </div>
           </div>
         )}

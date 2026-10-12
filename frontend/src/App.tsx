@@ -22,7 +22,7 @@ import {
   type Project,
 } from "./project";
 import { api } from "./services/api";
-import type { Example, ForwardOptions, JobKind, JobStatus, ModuleId } from "./types/api";
+import type { Example, ForwardOptions, ForwardRunRequest, JobKind, JobStatus, ModuleId } from "./types/api";
 
 const MODULE_OF: Record<JobKind, ModuleId> = {
   forward: "forward",
@@ -177,7 +177,10 @@ export default function App() {
       caps={caps}
       examples={examples.filter((e) => e.modules.includes(project.module))}
       activeExample={activeExampleId}
-      onExample={(ex) => view.onExample(ex)}
+      onExample={(ex) => {
+        view.onExample(ex);
+        setProject((p) => ({ ...p, name: ex.title }));
+      }}
       jobs={jobs}
       activeJob={jobId}
       onJob={(id) => {
@@ -185,6 +188,21 @@ export default function App() {
         if (j) setProject((p) => ({ ...p, module: MODULE_OF[j.kind] ?? p.module }));
         if (j?.kind === "operator_train" && j.status === "completed") setProject((p) => ({ ...p, operator: { ...p.operator, modelId: id } }));
         if (j?.kind === "mpc_train" && j.status === "completed") setProject((p) => ({ ...p, mpc: { ...p.mpc, surrogateId: id } }));
+        // a Forward run brings back the system it ran, so the editor matches the run on screen
+        if (j?.kind === "forward")
+          api
+            .jobRequest(id)
+            .then(({ payload }) => {
+              const r = payload as ForwardRunRequest;
+              setProject((p) => ({
+                ...p,
+                name: r.system.name,
+                module: "forward",
+                forward: { exampleId: null, system: r.system, time: r.time, options: { ...forwardDefaults, ...r.options }, reference: r.reference },
+              }));
+              setNotice(`Editor loaded from run ${id}.`);
+            })
+            .catch(() => {});
         setJobId(id);
       }}
     />
