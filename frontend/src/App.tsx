@@ -104,20 +104,6 @@ export default function App() {
     figuresOnScreen.current.delete(id);
   }, []);
   const figureStyle = project.figures?.[project.module];
-  // {system} in a figure style follows the problem on screen
-  const systemName =
-    project.module === "forward"
-      ? project.forward.system.name
-      : project.module === "inverse"
-        ? project.inverse.system.name
-        : project.module === "operator"
-          ? project.operator.source === "builtin" ? project.operator.builtin : project.operator.system.name
-          : project.mpc.source === "builtin" ? project.mpc.builtin : project.mpc.system.name;
-  const moduleLabel = { forward: "Forward Solver", operator: "Operator Learning", inverse: "Inverse Solver", mpc: "Model Predictive Control" }[project.module];
-  const figureCtx = useMemo(
-    () => ({ style: figureStyle, vars: { system: systemName, module: moduleLabel }, register: registerFigure, unregister: unregisterFigure }),
-    [figureStyle, systemName, moduleLabel, registerFigure, unregisterFigure],
-  );
   // one chat per module, kept while switching modules
   const [chats, setChats] = useState<Record<ModuleId, ChatEntry[]>>({ forward: [], operator: [], inverse: [], mpc: [] });
 
@@ -149,6 +135,24 @@ export default function App() {
   // ── jobs ─────────────────────────────────────────────────────────────
   const [jobs, setJobs] = useState<JobStatus[]>([]);
   const [jobId, setJobId] = useState<string | null>(null);
+  // {system} in a figure style follows the problem on screen: the system of the run shown (its label
+  // starts with the system name, e.g. "lorenz" or "tank (operator)"), else the one in the editor
+  const editorName =
+    project.module === "forward"
+      ? project.forward.system.name
+      : project.module === "inverse"
+        ? project.inverse.system.name
+        : project.module === "operator"
+          ? project.operator.source === "builtin" ? project.operator.builtin : project.operator.system.name
+          : project.mpc.source === "builtin" ? project.mpc.builtin : project.mpc.system.name;
+  const shownJob = jobs.find((j) => j.id === jobId);
+  const shownName = shownJob && MODULE_OF[shownJob.kind] === project.module ? shownJob.label.replace(/\s*\([^()]*\)$/, "").trim() : "";
+  const systemName = shownName || editorName;
+  const moduleLabel = { forward: "Forward Solver", operator: "Operator Learning", inverse: "Inverse Solver", mpc: "Model Predictive Control" }[project.module];
+  const figureCtx = useMemo(
+    () => ({ style: figureStyle, vars: { system: systemName, module: moduleLabel }, register: registerFigure, unregister: unregisterFigure }),
+    [figureStyle, systemName, moduleLabel, registerFigure, unregisterFigure],
+  );
   const refreshJobs = useCallback(() => {
     api.jobs().then(setJobs).catch(() => {});
   }, []);
