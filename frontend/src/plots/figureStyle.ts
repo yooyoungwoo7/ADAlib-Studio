@@ -87,7 +87,38 @@ export function applyFigureStyle(spec: PlotSpec, style: FigureStyle | undefined,
     }
     if (p.export) exp = { ...exp, ...p.export };
   }
+  // a title added by a patch gets room above the axes unless the patch sets the top margin itself
+  const titled = patches.some((p) => isObj(p.layout?.title) || typeof p.layout?.title === "string");
+  const topSet = patches.some((p) => isObj(p.layout?.margin) && (p.layout!.margin as Obj).t != null);
+  const margin = (isObj(layout.margin) ? layout.margin : {}) as Obj;
+  if (titled) {
+    // pin the title to the top edge; a legend above the axes (Paper look) sits between title and plot
+    const legend = (isObj(layout.legend) ? layout.legend : {}) as Obj;
+    const legendAbove = layout.showlegend !== false && Number(legend.y ?? 0) >= 1;
+    const title = (isObj(layout.title) ? layout.title : { text: layout.title }) as Obj;
+    layout = { ...layout, title: { yref: "container", y: 0.98, yanchor: "top", ...title } };
+    const need = legendAbove ? 95 : 60;
+    if (!topSet && Number(margin.t ?? 0) < need) layout = { ...layout, margin: { ...margin, t: need } };
+  }
   return { spec: { data, layout }, exp };
+}
+
+/** Names that follow the problem on screen: "{system}", "{state}" (per-state panel), "{module}". */
+export type FigureVars = Record<string, string>;
+const PLACEHOLDER = /\{(system|state|module)\}/g;
+
+/** Replace placeholders in every string of a layout (titles, annotations, ...) and in trace names. */
+export function fillPlaceholders(spec: PlotSpec, vars: FigureVars): PlotSpec {
+  const fill = (v: unknown): unknown =>
+    typeof v === "string"
+      ? v.includes("{") ? v.replace(PLACEHOLDER, (m, k: string) => vars[k] ?? m) : v
+      : Array.isArray(v)
+        ? v.map(fill)
+        : isObj(v)
+          ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, fill(x)]))
+          : v;
+  const data = (spec.data as Obj[]).map((t) => (typeof t.name === "string" && t.name.includes("{") ? { ...t, name: fill(t.name) } : t));
+  return { data, layout: fill(spec.layout) as Obj };
 }
 
 /** Export size from a figure patch: cm -> CSS px at 96 dpi, dpi -> scale. */
@@ -129,7 +160,9 @@ export const FIGURE_IDS: Record<"forward" | "operator" | "inverse" | "mpc", stri
 /** Provided by the App shell: the active module's figure style, and a registry of figures on screen. */
 export interface FigureStyleContextValue {
   style: FigureStyle | undefined;
+  /** values for the placeholders ({system}, {module}); {state} comes from the panel's figure id */
+  vars: FigureVars;
   register: (info: FigureInfo) => void;
   unregister: (id: string) => void;
 }
-export const FigureStyleContext = createContext<FigureStyleContextValue>({ style: undefined, register: () => {}, unregister: () => {} });
+export const FigureStyleContext = createContext<FigureStyleContextValue>({ style: undefined, vars: {}, register: () => {}, unregister: () => {} });

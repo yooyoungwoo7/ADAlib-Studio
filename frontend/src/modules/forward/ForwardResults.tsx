@@ -28,6 +28,7 @@ export function ForwardResults({
   onRestore,
   plotStyle,
   onResetStyle,
+  figureStyled = false,
 }: {
   jobId: string;
   result: ForwardResult;
@@ -37,6 +38,8 @@ export function ForwardResults({
   /** figure style from the AI assistant (trajectory plots) */
   plotStyle?: PlotStyle;
   onResetStyle?: () => void;
+  /** the AI also set free-form figure patches for this module (cleared by the same Reset) */
+  figureStyled?: boolean;
 }) {
   const names = result.system.state_names;
   const hasRef = !!result.reference?.y;
@@ -76,7 +79,7 @@ export function ForwardResults({
     [t, result, shownStates, names, plotStyle],
   );
   const exp = useMemo(() => exportOptions(plotStyle), [plotStyle]);
-  const styled = isStyled(plotStyle);
+  const styled = isStyled(plotStyle) || figureStyled;
   // per state: one figure per state (legend on the first), each saved on its own
   const panelSpecs = useMemo(
     () => (grid ? shownStates.map((s, k) => statePanelPlot(t, result.t, s, names, { refLabel: "reference, BDF", legend: k === 0, style: plotStyle })) : []),

@@ -1,5 +1,5 @@
 import { useContext, useEffect, useMemo, useRef } from "react";
-import { applyFigureStyle, figureExport, figureInfo, FigureStyleContext } from "./figureStyle";
+import { applyFigureStyle, figureExport, figureInfo, FigureStyleContext, fillPlaceholders } from "./figureStyle";
 import type { ExportOptions } from "./style";
 import type { PlotSpec } from "./theme";
 
@@ -42,7 +42,11 @@ export function Plot({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const fig = useContext(FigureStyleContext);
-  const styled = useMemo(() => applyFigureStyle(spec, fig.style, figureId), [spec, fig.style, figureId]);
+  const styled = useMemo(() => {
+    const out = applyFigureStyle(spec, fig.style, figureId);
+    const state = figureId?.startsWith("trajectory_panel_") ? figureId.slice("trajectory_panel_".length) : undefined;
+    return { ...out, spec: fillPlaceholders(out.spec, { ...fig.vars, ...(state ? { state } : {}) }) };
+  }, [spec, fig.style, fig.vars, figureId]);
   const exp = figureExport(exportOptions, styled.exp);
 
   // tell the assistant what this figure looks like before its patch

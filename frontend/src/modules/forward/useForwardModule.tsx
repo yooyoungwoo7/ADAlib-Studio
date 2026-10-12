@@ -180,7 +180,8 @@ export function useForwardModule(ctx: ModuleContext): ModuleView {
           themeKey={ctx.themeKey}
           onRestore={jobRequest ? restore : undefined}
           plotStyle={p.plotStyle}
-          onResetStyle={() => set({ plotStyle: undefined })}
+          figureStyled={!!ctx.project.figures?.forward && Object.keys(ctx.project.figures.forward).length > 0}
+          onResetStyle={() => ctx.setProject((pr) => ({ ...pr, forward: { ...pr.forward, plotStyle: undefined }, figures: { ...pr.figures, forward: undefined } }))}
         />
       ) : (
         <EmptyResults

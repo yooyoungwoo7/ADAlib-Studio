@@ -48,3 +48,16 @@ describe("applyFigureStyle", () => {
     expect(applyFigureStyle(spec, undefined, "prediction").spec).toBe(spec);
   });
 });
+
+describe("placeholders", () => {
+  it("fill {system} and {state} when drawn, and make room for a title", async () => {
+    const { fillPlaceholders } = await import("../plots/figureStyle");
+    const { spec: out } = applyFigureStyle(spec, { "*": { layout: { title: { text: "{system} — {state}" } } } }, "trajectory_panel_x");
+    expect((out.layout as Record<string, any>).margin.t).toBe(60); // eslint-disable-line @typescript-eslint/no-explicit-any
+    const a = fillPlaceholders(out, { system: "lorenz", state: "x" });
+    const b = fillPlaceholders(out, { system: "duffing", state: "x" });
+    expect((a.layout as Record<string, any>).title.text).toBe("lorenz — x"); // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect((b.layout as Record<string, any>).title.text).toBe("duffing — x"); // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect((fillPlaceholders(out, {}).layout as Record<string, any>).title.text).toBe("{system} — {state}"); // eslint-disable-line @typescript-eslint/no-explicit-any
+  });
+});
