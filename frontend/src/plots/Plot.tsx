@@ -43,7 +43,7 @@ export function Plot({
   const ref = useRef<HTMLDivElement>(null);
   const fig = useContext(FigureStyleContext);
   const styled = useMemo(() => {
-    const out = applyFigureStyle(spec, fig.style, figureId);
+    const out = applyFigureStyle(spec, fig.style, figureId, fig.vars.system);
     const state = figureId?.startsWith("trajectory_panel_") ? figureId.slice("trajectory_panel_".length) : undefined;
     return { ...out, spec: fillPlaceholders(out.spec, { ...fig.vars, ...(state ? { state } : {}) }) };
   }, [spec, fig.style, fig.vars, figureId]);

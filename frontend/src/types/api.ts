@@ -598,6 +598,7 @@ export interface AssistForwardRequest {
   current_figure_style?: object;
   figures?: object[];
   figure_ids?: string[];
+  figure_system?: string;
   history: AssistMessage[];
   language?: string;
 }
@@ -623,6 +624,7 @@ export interface AssistModuleRequest {
   state: object;
   figures?: object[];
   figure_ids?: string[];
+  figure_system?: string;
   history: AssistMessage[];
   language?: string;
 }

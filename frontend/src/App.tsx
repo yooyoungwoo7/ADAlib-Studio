@@ -337,7 +337,7 @@ export default function App() {
     ...inner,
     state: { ...inner.state, figure_style: figureStyle ?? {} },
     ask: (req: Parameters<typeof inner.ask>[0]) =>
-      inner.ask({ ...req, figures: [...figuresOnScreen.current.values()], figure_ids: figureIds }),
+      inner.ask({ ...req, figures: [...figuresOnScreen.current.values()], figure_ids: figureIds, figure_system: systemName }),
     apply: ({ figure_style, ...rest }: { figure_style?: FigureStyle }) => {
       setProject((p) => ({
         ...p,

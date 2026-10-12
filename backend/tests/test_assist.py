@@ -274,3 +274,22 @@ def test_figure_style_is_free_plotly_and_merged(client, monkeypatch):
     fake_llm(monkeypatch, [json.dumps({"reply": "x", "figure_style": {"*": {"layout": {"title": {
         "text": "<a href='javascript:alert(1)'>x</a>"}}}}})] * 3)
     assert client.post("/api/assist/forward", json={"prompt": "x", "current_system": PENDULUM["system"]}).status_code == 422
+
+
+def test_figure_style_per_problem(client, monkeypatch):
+    client.put("/api/assist/settings", json={"provider": "openai", "api_key": "sk-abcdefgh"})
+    cur = {"*": {"layout": {"font": {"size": 12}}},
+           "@lorenz": {"trajectories": {"layout": {"title": {"text": "Lorenz attractor"}}},
+                       "trajectory_panel_z": {"layout": {"title": {"text": "z only"}}}}}   # z: not a state now
+    nested = {"reply": "x", "figure_style": {"@pendulum": {"@x": {}}}}
+    unknown = {"reply": "x", "figure_style": {"@pendulum": {"nope": {"layout": {"title": {"text": "t"}}}}}}
+    good = {"reply": "Title set for this problem.",
+            "figure_style": {"@pendulum": {"trajectories": {"layout": {"title": {"text": "Damped pendulum"}}}}}}
+    calls = fake_llm(monkeypatch, [json.dumps(nested), json.dumps(unknown), json.dumps(good)])
+    out = client.post("/api/assist/forward", json={
+        "prompt": "제목을 Damped pendulum으로", "current_system": PENDULUM["system"], "current_figure_style": cur,
+        "figure_ids": ["trajectories", "trajectory_panel_theta", "trajectory_panel_omega"],
+        "figure_system": "pendulum"}).json()
+    assert "'@x'" in calls[1]["messages"][-1]["content"] and "unknown figure" in calls[2]["messages"][-1]["content"]
+    assert '"pendulum"' in calls[0]["messages"][-1]["content"] and "@<problem name>" in calls[0]["instructions"]
+    assert out["figure_style"] == {**cur, "@pendulum": {"trajectories": {"layout": {"title": {"text": "Damped pendulum"}}}}}

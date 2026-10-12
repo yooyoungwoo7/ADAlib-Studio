@@ -104,7 +104,7 @@ export function useForwardModule(ctx: ModuleContext): ModuleView {
     assist: {
       label: "Forward Solver",
       state: { system: p.system, time: p.time, options: p.options, plotStyle: p.plotStyle },
-      ask: async ({ prompt, images, state, history, language, figures, figure_ids }) => {
+      ask: async ({ prompt, images, state, history, language, figures, figure_ids, figure_system }) => {
         const r = await api.assistForward({
           prompt,
           images,
@@ -115,6 +115,7 @@ export function useForwardModule(ctx: ModuleContext): ModuleView {
           current_figure_style: state.figure_style,
           figures,
           figure_ids,
+          figure_system,
           history,
           language,
         });

@@ -61,3 +61,20 @@ describe("placeholders", () => {
     expect((fillPlaceholders(out, {}).layout as Record<string, any>).title.text).toBe("{system} — {state}"); // eslint-disable-line @typescript-eslint/no-explicit-any
   });
 });
+
+describe("per-problem figure styles", () => {
+  it("apply a problem's own patches on top of the module's, and only to that problem", () => {
+    const style = {
+      "*": { layout: { title: { text: "{system}" }, font: { size: 12 } } },
+      "@lorenz": { "*": { layout: { title: { text: "Lorenz attractor" } } } },
+      "@duffing": { prediction: { traces: { "*": { line: { color: "red" } } } } },
+    };
+    const L = (s?: string) => applyFigureStyle(spec, style, "prediction", s).spec.layout as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(L("lorenz").title.text).toBe("Lorenz attractor");
+    expect(L("pendulum").title.text).toBe("{system}");
+    expect(L(undefined).font.size).toBe(12);
+    const red = applyFigureStyle(spec, style, "prediction", "duffing").spec.data as Record<string, any>[]; // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(red[0].line.color).toBe("red");
+    expect((applyFigureStyle(spec, style, "prediction", "lorenz").spec.data as Record<string, any>[])[0].line.color).toBe("blue"); // eslint-disable-line @typescript-eslint/no-explicit-any
+  });
+});

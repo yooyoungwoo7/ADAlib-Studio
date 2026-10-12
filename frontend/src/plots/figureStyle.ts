@@ -19,8 +19,9 @@ export interface FigurePatch {
   export?: FigureExport;
 }
 
-/** figure id, "prefix*" or "*" (every figure of the module) -> patch */
-export type FigureStyle = Record<string, FigurePatch>;
+/** figure id, "prefix*" or "*" (every figure of the module, every problem) -> patch; "@<system>" holds
+ *  the same for one problem's figures only (titles and the like), applied on top */
+export type FigureStyle = Record<string, FigurePatch | Record<string, FigurePatch>>;
 
 /** What the assistant is told about a figure on screen. */
 export interface FigureInfo {
@@ -55,18 +56,27 @@ function matchesTrace(sel: string, t: Obj, i: number) {
   return false;
 }
 
-/** The patches that apply to a figure, broad first ("*", then prefixes, then the exact id). */
-function patchesFor(style: FigureStyle | undefined, id: string): FigurePatch[] {
+/** The patches that apply to a figure: the module level, then the problem's own ("@<system>"),
+ *  each broad first ("*", then prefixes, then the exact id). */
+function patchesFor(style: FigureStyle | undefined, id: string, system?: string): FigurePatch[] {
   if (!style) return [];
   const rank = (k: string) => (k === "*" ? 0 : k.endsWith("*") ? 1 : 2);
-  return Object.keys(style)
-    .filter((k) => matchesId(k, id))
-    .sort((a, b) => rank(a) - rank(b) || a.length - b.length)
-    .map((k) => style[k]);
+  const level = (s: Record<string, unknown>) =>
+    Object.keys(s)
+      .filter((k) => !k.startsWith("@") && matchesId(k, id))
+      .sort((a, b) => rank(a) - rank(b) || a.length - b.length)
+      .map((k) => s[k] as FigurePatch);
+  const own = system ? (style as Record<string, unknown>)[`@${system}`] : undefined;
+  return [...level(style), ...(isObj(own) ? level(own) : [])];
 }
 
-export function applyFigureStyle(spec: PlotSpec, style: FigureStyle | undefined, id: string | undefined): { spec: PlotSpec; exp?: FigureExport } {
-  const patches = id ? patchesFor(style, id) : [];
+export function applyFigureStyle(
+  spec: PlotSpec,
+  style: FigureStyle | undefined,
+  id: string | undefined,
+  system?: string,
+): { spec: PlotSpec; exp?: FigureExport } {
+  const patches = id ? patchesFor(style, id, system) : [];
   if (!patches.length) return { spec };
   let layout = spec.layout as Obj;
   let data = spec.data as Obj[];

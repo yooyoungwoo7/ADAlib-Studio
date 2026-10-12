@@ -57,6 +57,8 @@ export interface AssistAsk<S> {
   /** figures on screen and every figure id of the module (added by the App shell) */
   figures?: FigureInfo[];
   figure_ids?: string[];
+  /** the problem whose figures are on screen ("@<system>" in a figure style) */
+  figure_system?: string;
 }
 export interface AssistAnswer<S> {
   state: S;
