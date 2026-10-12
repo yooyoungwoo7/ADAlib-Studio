@@ -539,3 +539,50 @@ export interface MPCResult {
 }
 
 export type JobResult = ForwardResult | OperatorTrainResult | OperatorInferResult | InverseResult | MPCResult | MPCTrainResult;
+
+// ── natural-language assistant (/api/assist) ─────────────────────────
+export type AssistProvider = "anthropic" | "openai";
+
+export interface AssistMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface AssistForwardRequest {
+  prompt: string;
+  provider?: AssistProvider;
+  current_system?: SystemSpec;
+  current_time?: TimeSpan;
+  history: AssistMessage[];
+}
+
+export interface AssistForwardResponse {
+  system: SystemSpec;
+  time: TimeSpan;
+  reply: string;
+  provider: AssistProvider;
+  model: string;
+  attempts: number;
+}
+
+export interface AssistProviderStatus {
+  label: string;
+  configured: boolean;
+  source: "env" | "settings" | null;
+  key_hint: string | null;
+  model: string;
+  default_model: string;
+}
+
+export interface AssistStatus {
+  provider: AssistProvider | null;
+  providers: Record<AssistProvider, AssistProviderStatus>;
+  settings_file: string;
+}
+
+export interface AssistSettingsUpdate {
+  provider: AssistProvider;
+  api_key?: string;
+  model?: string;
+  make_default?: boolean;
+}

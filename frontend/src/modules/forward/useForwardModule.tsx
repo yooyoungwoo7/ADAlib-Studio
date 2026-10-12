@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { AssistChat, type ChatEntry } from "../../components/assist/AssistChat";
 import { ForwardConfig } from "../../components/configuration/ForwardConfig";
 import { SystemEditor } from "../../components/equations/SystemEditor";
 import { EmptyResults } from "../../components/common/EmptyResults";
@@ -18,6 +19,9 @@ export function useForwardModule(ctx: ModuleContext): ModuleView {
       ...pr,
       forward: { ...pr.forward, ...patch, exampleId: patch.system || patch.time ? null : pr.forward.exampleId },
     }));
+
+  // AI assistant chat; kept here so it survives switching modules
+  const [chat, setChat] = useState<ChatEntry[]>([]);
 
   // the request behind the job on screen, for "Config JSON" and "Restore inputs"
   const [jobRequest, setJobRequest] = useState<ForwardRunRequest | null>(null);
@@ -66,14 +70,26 @@ export function useForwardModule(ctx: ModuleContext): ModuleView {
       />
     ),
     config: (
-      <ForwardConfig
-        options={p.options}
-        defaults={ctx.forwardDefaults}
-        onChange={(options) => set({ options })}
-        reference={p.reference}
-        onReference={(reference) => set({ reference })}
-        disabled={false}
-      />
+      <>
+        <ForwardConfig
+          options={p.options}
+          defaults={ctx.forwardDefaults}
+          onChange={(options) => set({ options })}
+          reference={p.reference}
+          onReference={(reference) => set({ reference })}
+          disabled={false}
+        />
+        <AssistChat
+          system={p.system}
+          time={p.time}
+          onApply={(system, time) =>
+            ctx.setProject((pr) => ({ ...pr, name: system.name, forward: { ...pr.forward, system, time, exampleId: null } }))
+          }
+          chat={chat}
+          setChat={setChat}
+          disabled={ctx.conn !== "online"}
+        />
+      </>
     ),
     results:
       shown && ctx.jobId ? (

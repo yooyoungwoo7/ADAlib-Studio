@@ -288,6 +288,21 @@ See [docs/architecture.md](docs/architecture.md) for the design and
 [docs/api_integration.md](docs/api_integration.md) for how each input maps
 onto adalib.
 
+## AI assistant (Forward Solver)
+
+The **AI assistant** panel under Verification turns a sentence into a system
+definition: "damped pendulum with gamma = 0.5 for 10 s", then follow-ups such
+as "set mu to 3". The backend sends the request, the system on screen and the
+chat so far to Anthropic Claude or OpenAI, checks the answer with the equation
+parser (and asks again if it fails), and fills the editor. Nothing runs until
+you press **Run**; each answer has **Undo this change**.
+
+Open **Settings** in the panel to pick the provider, paste an API key and
+optionally change the model (defaults: `claude-haiku-5-5`, `gpt-5.4-mini`).
+Keys are stored in `~/adalib-studio/settings.json` on this computer and never
+sent to the browser; `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` take precedence.
+Each request is billed to that key.
+
 ## Configuration (environment variables)
 
 | Variable | Default | Purpose |
@@ -296,6 +311,9 @@ onto adalib.
 | `ADALIB_STUDIO_PYTHON` | backend interpreter | Python used for workers (must have adalib-IFL) |
 | `ADALIB_STUDIO_MAX_PARALLEL` | 1 | Concurrent worker processes |
 | `ADALIB_STUDIO_CORS` | localhost:5173 | Allowed dev origins |
+| `ADALIB_STUDIO_SETTINGS` | `~/adalib-studio/settings.json` | AI assistant provider, keys and models |
+| `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` | none | AI assistant keys (override the settings file) |
+| `ANTHROPIC_BASE_URL`, `OPENAI_BASE_URL` | official APIs | Other endpoints, e.g. a proxy or an OpenAI-compatible local model |
 
 ## License
 

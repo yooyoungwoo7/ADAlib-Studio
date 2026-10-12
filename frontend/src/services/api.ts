@@ -1,4 +1,8 @@
 import type {
+  AssistForwardRequest,
+  AssistForwardResponse,
+  AssistSettingsUpdate,
+  AssistStatus,
   Capabilities,
   Example,
   JobResult,
@@ -94,5 +98,10 @@ export const api = {
   mpcModels: () => request<MPCSurrogate[]>("/api/mpc/models"),
   runMpc: (req: MPCLoopRequest) =>
     request<{ job_id: string; status: string }>("/api/mpc/run", { method: "POST", body: JSON.stringify(req) }),
+  assistStatus: () => request<AssistStatus>("/api/assist/status"),
+  assistSettings: (upd: AssistSettingsUpdate) =>
+    request<AssistStatus>("/api/assist/settings", { method: "PUT", body: JSON.stringify(upd) }),
+  assistForward: (req: AssistForwardRequest) =>
+    request<AssistForwardResponse>("/api/assist/forward", { method: "POST", body: JSON.stringify(req) }),
   fileUrl: (id: string, name: string) => `/api/jobs/${id}/files/${name}`,
 };
