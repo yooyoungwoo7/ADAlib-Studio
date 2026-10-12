@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AssistPanel, type ChatEntry } from "./components/assist/AssistPanel";
+import { AssistPanel, canon, type ChatEntry } from "./components/assist/AssistPanel";
 import { Button } from "./components/common/controls";
 import { Console } from "./components/layout/Console";
 import { MODULE_OF, Sidebar } from "./components/layout/Sidebar";
@@ -24,7 +24,17 @@ import {
   type Project,
 } from "./project";
 import { api } from "./services/api";
-import type { Example, ForwardOptions, ForwardRunRequest, JobStatus, ModuleId } from "./types/api";
+import type { Example, ForwardOptions, ForwardRunRequest, JobStatus, ModuleId, SystemSpec, TimeSpan } from "./types/api";
+
+/** A Forward setup as a run stores it (names trimmed, editor-only fields left out), for comparisons. */
+const forwardKey = (system: SystemSpec, time: TimeSpan) =>
+  canon({
+    name: system.name,
+    states: system.states.map((s) => [s.name.trim(), s.initial]),
+    parameters: system.parameters.map((q) => [q.name.trim(), q.value]),
+    equations: system.equations.map((e) => e.replace(/\s+/g, "")),
+    time: [time.t0, time.t1],
+  });
 
 // AI assistant panel: height and collapsed state are remembered per browser
 const ASSIST_KEY = "adalib-studio-assistant-panel";
@@ -173,15 +183,19 @@ export default function App() {
   const view = views[project.module]!;
   const runBlockReason = view.blockReason;
 
+  // the Forward setup last loaded from a run or sent as a run: replacing it loses nothing
+  const forwardSaved = useRef<string | null>(null);
   const run = useCallback(async () => {
     if (runBlockReason || running) return;
     setNotice(null);
     try {
-      showJob(await view.run());
+      const id = await view.run();
+      if (project.module === "forward") forwardSaved.current = forwardKey(project.forward.system, project.forward.time);
+      showJob(id);
     } catch (e) {
       setNotice(`Run rejected: ${(e as Error).message}`);
     }
-  }, [view, runBlockReason, running, showJob]);
+  }, [view, runBlockReason, running, showJob, project.module, project.forward.system, project.forward.time]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -265,16 +279,19 @@ export default function App() {
         if (j?.kind === "mpc_train" && j.status === "completed") setProject((p) => ({ ...p, mpc: { ...p.mpc, surrogateId: id } }));
         // a Forward run brings back the system it ran, so the editor matches the run on screen
         if (j?.kind === "forward")
-          api
-            .jobRequest(id)
-            .then(({ payload }) => {
+          Promise.all([api.jobRequest(id), jobId ? api.jobRequest(jobId).catch(() => null) : null])
+            .then(([{ payload }, shownReq]) => {
               const r = payload as ForwardRunRequest;
+              const shown = shownReq?.kind === "forward" ? (shownReq.payload as ForwardRunRequest) : null;
               const f = project.forward;
-              const same = JSON.stringify([f.system, f.time]) === JSON.stringify([r.system, r.time]);
-              if (same) return;
-              // an example can be replaced freely; a system built here (by hand or by the AI) only on confirmation
+              const current = forwardKey(f.system, f.time);
+              if (current === forwardKey(r.system, r.time)) return;
+              // ask only when the editor holds work that exists nowhere else: not an example, not what
+              // was loaded from a run or last run, i.e. a system edited by hand or built by the AI
               if (
                 f.exampleId === null &&
+                current !== forwardSaved.current &&
+                !(shown && current === forwardKey(shown.system, shown.time)) &&
                 !window.confirm(
                   `Load the inputs of run ${id} (${r.system.name}) into the editor?\n\n` +
                     `The editor currently holds "${f.system.name}", which would be replaced. Choose Cancel to only view the run's results.`,
@@ -287,6 +304,7 @@ export default function App() {
                 module: "forward",
                 forward: { exampleId: null, system: r.system, time: r.time, options: { ...forwardDefaults, ...r.options }, reference: r.reference, plotStyle: p.forward.plotStyle },
               }));
+              forwardSaved.current = forwardKey(r.system, r.time);
               setNotice(`Editor loaded from run ${id}.`);
             })
             .catch(() => {});
