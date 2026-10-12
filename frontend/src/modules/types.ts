@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { AssistBinding } from "../components/assist/AssistPanel";
 import type { Connection, useJob } from "../hooks/hooks";
 import type { Project } from "../project";
 import type { Capabilities, Example, ForwardOptions, Health } from "../types/api";
@@ -19,6 +20,8 @@ export interface ModuleContext {
   /** submit-and-show: makes a job the console's active job */
   showJob: (id: string | null) => void;
   notify: (msg: string | null) => void;
+  /** changes whenever a run is added or deleted (modules listing trained models refresh on it) */
+  historyKey: string;
 }
 
 /** What a module hands back to the shell for layout. */
@@ -32,6 +35,9 @@ export interface ModuleView {
   /** submits the module's main job and returns its id */
   run: () => Promise<string>;
   onExample: (ex: Example) => void;
+  /** what the AI assistant panel may change in this module */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  assist: AssistBinding<any>;
 }
 
 export function backendBlock(ctx: ModuleContext): string | null {

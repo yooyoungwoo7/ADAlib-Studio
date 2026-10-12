@@ -1,12 +1,27 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { canon, type AssistBinding } from "../../components/assist/AssistPanel";
 import { Field, NumberField, Section } from "../../components/common/controls";
 import { EmptyResults } from "../../components/common/EmptyResults";
 import { SystemEditor } from "../../components/equations/SystemEditor";
 import { useSystemValidation } from "../../hooks/hooks";
 import { mpcFromExample, mpcLoopRequest, mpcRunIssues, mpcTrainIssues, mpcTrainRequest, surrogateMatches, type MPCProject } from "../../project";
 import { api } from "../../services/api";
-import type { MPCBuiltin, MPCSurrogate, OperatorPreset } from "../../types/api";
+import type { MPCBuiltin, MPCControllerId, MPCOptions, MPCSurrogate, OperatorPreset, SystemSpec } from "../../types/api";
+import { askModule, renamed } from "../assist";
 import { backendBlock, type ModuleContext, type ModuleView } from "../types";
+
+/** The MPC setup as the assistant sees it (backend: llm_assist._parse_mpc). */
+interface MPCAssistState {
+  source: MPCProject["source"];
+  builtin: MPCProject["builtin"];
+  system: SystemSpec;
+  dt: number;
+  targets: Record<string, number>;
+  tracking_weights: Record<string, number>;
+  control_weights: Record<string, number>;
+  controllers: MPCControllerId[];
+  options: MPCOptions;
+}
 import { BuiltinMPCPanel, MPCConfig, TrackingSection } from "./MPCPanels";
 import { MPCResults, MPCTrainView } from "./MPCResults";
 
@@ -35,7 +50,7 @@ export function useMPCModule(ctx: ModuleContext): ModuleView {
   const refreshModels = useCallback(() => api.mpcModels().then(setModels).catch(() => {}), []);
   useEffect(() => {
     if (ctx.conn === "online") refreshModels();
-  }, [ctx.conn, refreshModels]);
+  }, [ctx.conn, refreshModels, ctx.historyKey]);
   const compatible = models.filter((m) => surrogateMatches(p, m));
   const surrogate = compatible.find((m) => m.model_id === p.surrogateId) ?? compatible[0] ?? null;
 
@@ -90,6 +105,52 @@ export function useMPCModule(ctx: ModuleContext): ModuleView {
     blockReason,
     run: async () => (await api.runMpc(mpcLoopRequest(p, surrogate!, builtin))).job_id,
     onExample: (ex) => ctx.setProject((pr) => ({ ...pr, mpc: mpcFromExample(ex, pr.mpc) })),
+    assist: {
+      label: "Model Predictive Control",
+      state: {
+        source: p.source,
+        builtin: p.builtin,
+        system: p.system,
+        dt: p.dt,
+        targets: p.targets,
+        tracking_weights: p.trackingWeights,
+        control_weights: p.controlWeights,
+        controllers: p.controllers,
+        options: p.options,
+      },
+      ask: askModule<MPCAssistState>("mpc"),
+      apply: (s) =>
+        ctx.setProject((pr) => {
+          const m = pr.mpc;
+          return {
+            ...pr,
+            name: renamed(pr.name, m.system, s.system),
+            mpc: {
+              ...m,
+              source: s.source,
+              builtin: s.builtin,
+              system: s.system,
+              dt: s.dt,
+              targets: s.targets,
+              trackingWeights: s.tracking_weights,
+              controlWeights: s.control_weights,
+              controllers: s.controllers,
+              options: s.options,
+              exampleId: canon(m.system) === canon(s.system) ? m.exampleId : null,
+              presetId: canon(m.options) === canon(s.options) ? m.presetId : null,
+            },
+          };
+        }),
+      intro:
+        "Describe the plant (states with their ranges, control inputs), what to track and how to compare controllers, " +
+        "or attach a picture of the equations. A changed plant, range, dt or training size needs Train again; the rest only Run MPC.",
+      examples: [
+        "Tank level control: track h = 2 m with inflow q in [0, 1]",
+        "Compare FD and AD over 50 steps with horizon 10",
+        "Use the built-in CSTR",
+      ],
+      placeholder: "e.g. Inverted pendulum on a cart, keep theta at 0 with force u in [-10, 10]",
+    } satisfies AssistBinding<MPCAssistState>,
     editor:
       p.source === "custom" ? (
         <SystemEditor

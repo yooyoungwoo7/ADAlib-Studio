@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AssistPanel, type ChatEntry } from "./components/assist/AssistPanel";
 import { Button } from "./components/common/controls";
 import { Console } from "./components/layout/Console";
-import { Sidebar } from "./components/layout/Sidebar";
+import { MODULE_OF, Sidebar } from "./components/layout/Sidebar";
 import { Toolbar } from "./components/layout/Toolbar";
+import { FIGURE_IDS, FigureStyleContext, type FigureInfo, type FigureStyle } from "./plots/figureStyle";
 import { useBackend, useJob, useMediaQuery, usePlotStyle, useTheme } from "./hooks/hooks";
 import { useForwardModule } from "./modules/forward/useForwardModule";
 import { useInverseModule } from "./modules/inverse/useInverseModule";
@@ -22,16 +24,31 @@ import {
   type Project,
 } from "./project";
 import { api } from "./services/api";
-import type { Example, ForwardOptions, ForwardRunRequest, JobKind, JobStatus, ModuleId } from "./types/api";
+import type { Example, ForwardOptions, ForwardRunRequest, JobStatus, ModuleId } from "./types/api";
 
-const MODULE_OF: Record<JobKind, ModuleId> = {
-  forward: "forward",
-  operator_train: "operator",
-  operator_infer: "operator",
-  inverse: "inverse",
-  mpc: "mpc",
-  mpc_train: "mpc",
-};
+// AI assistant panel: height and collapsed state are remembered per browser
+const ASSIST_KEY = "adalib-studio-assistant-panel";
+function savedAssist(): { height: number; collapsed: boolean } {
+  try {
+    const s = JSON.parse(localStorage.getItem(ASSIST_KEY) ?? "null");
+    if (s && typeof s.height === "number") return { height: s.height, collapsed: !!s.collapsed };
+  } catch {
+    /* defaults */
+  }
+  return { height: Math.round(window.innerHeight * 0.45), collapsed: false };
+}
+
+// AI figure styles, remembered per browser like the theme (the project file carries them too)
+const FIGURES_KEY = "adalib-studio-figures";
+function savedFigures(): Project["figures"] {
+  try {
+    const s = JSON.parse(localStorage.getItem(FIGURES_KEY) ?? "null");
+    return s && typeof s === "object" && !Array.isArray(s) ? s : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 
 export default function App() {
   const theme = useTheme();
@@ -44,13 +61,45 @@ export default function App() {
     return { ...FALLBACK_FORWARD_DEFAULTS, ...rest };
   }, [caps]);
 
-  const [project, setProjectState] = useState<Project>(() => blankProject(FALLBACK_FORWARD_DEFAULTS));
+  const [project, setProjectState] = useState<Project>(() => ({ ...blankProject(FALLBACK_FORWARD_DEFAULTS), figures: savedFigures() }));
   const setProject = useCallback((fn: (p: Project) => Project) => setProjectState(fn), []);
   const [examples, setExamples] = useState<Example[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const wide = useMediaQuery("(min-width: 1024px)");
   const [panels, setPanels] = useState(() => ({ left: window.innerWidth >= 1024, right: true, bottom: true }));
   const [consoleHeight, setConsoleHeight] = useState(210);
+  const [assist, setAssist] = useState(savedAssist);
+  useEffect(() => {
+    try {
+      localStorage.setItem(ASSIST_KEY, JSON.stringify(assist));
+    } catch {
+      /* not remembered */
+    }
+  }, [assist]);
+  useEffect(() => {
+    try {
+      if (project.figures && Object.values(project.figures).some((f) => f && Object.keys(f).length))
+        localStorage.setItem(FIGURES_KEY, JSON.stringify(project.figures));
+      else localStorage.removeItem(FIGURES_KEY);
+    } catch {
+      /* not remembered */
+    }
+  }, [project.figures]);
+  // figures on screen, so the assistant knows their layout and traces
+  const figuresOnScreen = useRef(new Map<string, FigureInfo>());
+  const registerFigure = useCallback((f: FigureInfo) => {
+    figuresOnScreen.current.set(f.id, f);
+  }, []);
+  const unregisterFigure = useCallback((id: string) => {
+    figuresOnScreen.current.delete(id);
+  }, []);
+  const figureStyle = project.figures?.[project.module];
+  const figureCtx = useMemo(
+    () => ({ style: figureStyle, register: registerFigure, unregister: unregisterFigure }),
+    [figureStyle, registerFigure, unregisterFigure],
+  );
+  // one chat per module, kept while switching modules
+  const [chats, setChats] = useState<Record<ModuleId, ChatEntry[]>>({ forward: [], operator: [], inverse: [], mpc: [] });
 
   // ── examples: load once; start on the paper LV example ──────────────
   const initialised = useRef(false);
@@ -112,6 +161,7 @@ export default function App() {
     jobId,
     showJob,
     notify: setNotice,
+    historyKey: jobs.map((j) => j.id).join(","),
   };
   // every module hook runs on every render (rules of hooks); only the active one is shown
   const views: Partial<Record<ModuleId, ModuleView>> = {
@@ -147,7 +197,7 @@ export default function App() {
   const openFile = async (f: File) => {
     try {
       const pf = parseProjectFile(await f.text(), forwardDefaults);
-      setProject(() => pf.project);
+      setProject((p) => ({ ...pf.project, figures: pf.project.figures ?? p.figures }));
       setJobId(pf.last_job_id && jobs.some((j) => j.id === pf.last_job_id) ? pf.last_job_id : null);
       setNotice(`Opened "${pf.project.name}".`);
     } catch (e) {
@@ -155,17 +205,21 @@ export default function App() {
     }
   };
 
-  // ── console resize ───────────────────────────────────────────────────
-  const startResize = (e: React.PointerEvent) => {
+  // ── console / assistant resize ───────────────────────────────────────
+  const drag = (e: React.PointerEvent, h0: number, set: (h: number) => void, min: number, max: number) => {
     const y0 = e.clientY;
-    const h0 = consoleHeight;
-    const move = (ev: PointerEvent) => setConsoleHeight(Math.min(Math.max(h0 - (ev.clientY - y0), 90), window.innerHeight * 0.7));
+    const move = (ev: PointerEvent) => set(Math.min(Math.max(h0 - (ev.clientY - y0), min), window.innerHeight * max));
     const up = () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
+  };
+  const startResize = (e: React.PointerEvent) => drag(e, consoleHeight, setConsoleHeight, 90, 0.7);
+  const setAssistHeight = (h: number) => setAssist((a) => ({ ...a, height: h }));
+  const startAssistResize = (e: React.PointerEvent) => {
+    if (!assist.collapsed) drag(e, assist.height, setAssistHeight, 160, 0.85);
   };
 
   const activeExampleId =
@@ -183,6 +237,27 @@ export default function App() {
       }}
       jobs={jobs}
       activeJob={jobId}
+      onDeleteJob={async (j) => {
+        const name = `${j.label || j.kind} (${new Date(j.created_at).toLocaleString()})`;
+        const model =
+          j.kind === "operator_train" || j.kind === "mpc_train"
+            ? "\n\nThis is a training run: its trained model is deleted with it, so it can no longer be used for predictions or MPC."
+            : "";
+        if (!window.confirm(`Delete run ${name}?${model}\n\nIts results and files are removed from disk.`)) return;
+        try {
+          await api.deleteJob(j.id);
+          if (jobId === j.id) setJobId(null);
+          setProject((p) => ({
+            ...p,
+            operator: p.operator.modelId === j.id ? { ...p.operator, modelId: null } : p.operator,
+            mpc: p.mpc.surrogateId === j.id ? { ...p.mpc, surrogateId: null } : p.mpc,
+          }));
+          setNotice(`Deleted run ${name}.`);
+        } catch (e) {
+          setNotice(`Could not delete the run: ${(e as Error).message}`);
+        }
+        refreshJobs();
+      }}
       onJob={(id) => {
         const j = jobs.find((x) => x.id === id);
         if (j) setProject((p) => ({ ...p, module: MODULE_OF[j.kind] ?? p.module }));
@@ -219,15 +294,48 @@ export default function App() {
       }}
     />
   );
+  // every module's assistant can also restyle that module's figures (Plotly patches)
+  const mod = project.module;
+  const inner = view.assist;
+  const figureIds = [
+    ...FIGURE_IDS[mod],
+    ...(mod === "forward" ? project.forward.system.states.map((s) => `trajectory_panel_${s.name}`) : []),
+  ];
+  const assistBinding = {
+    ...inner,
+    state: { ...inner.state, figure_style: figureStyle ?? {} },
+    ask: (req: Parameters<typeof inner.ask>[0]) =>
+      inner.ask({ ...req, figures: [...figuresOnScreen.current.values()], figure_ids: figureIds }),
+    apply: ({ figure_style, ...rest }: { figure_style?: FigureStyle }) => {
+      setProject((p) => ({
+        ...p,
+        figures: { ...p.figures, [mod]: figure_style && Object.keys(figure_style).length ? figure_style : undefined },
+      }));
+      inner.apply(rest);
+    },
+    keyLabels: { figure_style: "figure", ...inner.keyLabels },
+  };
   const consoleEl = <Console status={job.status} log={job.log} pollError={job.error} />;
+  const assistEl = (
+    <AssistPanel
+      key={project.module}
+      binding={assistBinding}
+      chat={chats[project.module]}
+      setChat={(fn) => setChats((c) => ({ ...c, [project.module]: fn(c[project.module]) }))}
+      disabled={conn !== "online"}
+      collapsed={assist.collapsed}
+      onCollapse={(collapsed) => setAssist((a) => ({ ...a, collapsed }))}
+    />
+  );
 
   return (
+    <FigureStyleContext.Provider value={figureCtx}>
     <div className="flex flex-col h-full min-h-0">
       <Toolbar
         projectName={project.name}
         onRename={(name) => setProject((p) => ({ ...p, name }))}
         onNew={() => {
-          setProject(() => blankProject(forwardDefaults));
+          setProject((p) => ({ ...blankProject(forwardDefaults), figures: p.figures }));
           setJobId(null);
           setNotice("New project.");
         }}
@@ -267,21 +375,14 @@ export default function App() {
         <div className="flex flex-1 min-h-0">
           {panels.left && <aside className="w-[232px] shrink-0 bg-panel border-r border-line min-h-0">{sidebarEl}</aside>}
           <div className="flex flex-col flex-1 min-w-0 min-h-0">
-            <div className="flex flex-1 min-h-0">
-              <main className="flex-1 min-w-0 min-h-0 flex">
-                <section aria-label="System definition" className="w-[400px] xl:w-[460px] shrink-0 bg-panel border-r border-line overflow-y-auto">
-                  {view.editor}
-                </section>
-                <section aria-label="Results" className="flex-1 min-w-0 min-h-0 bg-panel">
-                  {view.results}
-                </section>
-              </main>
-              {panels.right && (
-                <aside aria-label="Solver configuration" className="w-[300px] shrink-0 bg-panel border-l border-line overflow-y-auto">
-                  {view.config}
-                </aside>
-              )}
-            </div>
+            <main className="flex-1 min-w-0 min-h-0 flex">
+              <section aria-label="System definition" className="w-[400px] xl:w-[460px] shrink-0 bg-panel border-r border-line overflow-y-auto">
+                {view.editor}
+              </section>
+              <section aria-label="Results" className="flex-1 min-w-0 min-h-0 bg-panel">
+                {view.results}
+              </section>
+            </main>
             {panels.bottom && (
               <div className="shrink-0 bg-panel border-t border-line flex flex-col" style={{ height: consoleHeight }}>
                 <div
@@ -300,6 +401,28 @@ export default function App() {
               </div>
             )}
           </div>
+          {panels.right && (
+            <aside className="w-[300px] shrink-0 bg-panel border-l border-line flex flex-col min-h-0">
+              <div aria-label="Solver configuration" role="region" className="flex-1 min-h-0 overflow-y-auto">
+                {view.config}
+              </div>
+              <div
+                role="separator"
+                aria-orientation="horizontal"
+                aria-label="Resize assistant"
+                tabIndex={0}
+                onPointerDown={startAssistResize}
+                onKeyDown={(e) => {
+                  if (e.key === "ArrowUp") setAssistHeight(Math.min(assist.height + 20, window.innerHeight * 0.85));
+                  if (e.key === "ArrowDown") setAssistHeight(Math.max(assist.height - 20, 160));
+                }}
+                className={`h-1.5 shrink-0 border-t border-line ${assist.collapsed ? "" : "cursor-row-resize hover:bg-accent/40"}`}
+              />
+              <section aria-label="AI assistant" className="shrink-0 flex flex-col min-h-0" style={assist.collapsed ? undefined : { height: assist.height }}>
+                {assistEl}
+              </section>
+            </aside>
+          )}
         </div>
       ) : (
         // narrow screens: one scrolling column, panels stacked in workflow order
@@ -307,10 +430,14 @@ export default function App() {
           {panels.left && <aside className="border-b border-line max-h-[60vh] overflow-y-auto">{sidebarEl}</aside>}
           <section aria-label="System definition" className="border-b border-line">{view.editor}</section>
           <section aria-label="Solver configuration" className="border-b border-line">{view.config}</section>
+          <section aria-label="AI assistant" className={`border-b border-line flex flex-col ${assist.collapsed ? "" : "h-[480px]"}`}>
+            {assistEl}
+          </section>
           <section aria-label="Results" className="h-[560px] border-b border-line">{view.results}</section>
           {panels.bottom && <div className="h-[300px] flex flex-col">{consoleEl}</div>}
         </div>
       )}
     </div>
+    </FigureStyleContext.Provider>
   );
 }

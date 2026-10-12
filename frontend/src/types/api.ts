@@ -595,6 +595,9 @@ export interface AssistForwardRequest {
   current_time?: TimeSpan;
   current_options?: ForwardOptions;
   current_plot_style?: PlotStyle;
+  current_figure_style?: object;
+  figures?: object[];
+  figure_ids?: string[];
   history: AssistMessage[];
   language?: string;
 }
@@ -604,6 +607,28 @@ export interface AssistForwardResponse {
   time: TimeSpan;
   options: ForwardOptions;
   plot_style: PlotStyle;
+  /** the module's complete free-form figure style after the change (plots/figureStyle.ts) */
+  figure_style: Record<string, never>;
+  reply: string;
+  provider: AssistProvider;
+  model: string;
+  attempts: number;
+}
+
+/** Operator / Inverse / MPC: the module's setup as the assistant sees it (snake_case keys). */
+export interface AssistModuleRequest {
+  prompt: string;
+  images?: AssistImage[];
+  provider?: AssistProvider;
+  state: object;
+  figures?: object[];
+  figure_ids?: string[];
+  history: AssistMessage[];
+  language?: string;
+}
+
+export interface AssistModuleResponse {
+  state: Record<string, unknown>;
   reply: string;
   provider: AssistProvider;
   model: string;

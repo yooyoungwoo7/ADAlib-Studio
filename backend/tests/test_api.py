@@ -80,3 +80,17 @@ def test_index_html_is_revalidated():
         for path in ("/", "/index.html", "/some/client/route"):
             r = c.get(path)
             assert r.status_code == 200 and r.headers["cache-control"] == "no-cache", path
+
+
+def test_delete_job(client, tmp_path):
+    import json
+    for jid, status in (("20260101-000000-aaaaaa", "completed"), ("20260101-000001-bbbbbb", "running")):
+        (tmp_path / jid).mkdir()
+        (tmp_path / jid / "status.json").write_text(json.dumps({"id": jid, "kind": "forward", "status": status}))
+        (tmp_path / jid / "result.json").write_text("{}")
+    assert client.delete("/api/jobs/20260101-000000-aaaaaa").json() == {"deleted": "20260101-000000-aaaaaa"}
+    assert not (tmp_path / "20260101-000000-aaaaaa").exists()
+    assert [j["id"] for j in client.get("/api/jobs").json()] == ["20260101-000001-bbbbbb"]
+    r = client.delete("/api/jobs/20260101-000001-bbbbbb")
+    assert r.status_code == 409 and "stop it first" in r.json()["detail"]["message"]
+    assert client.delete("/api/jobs/20260101-000000-aaaaaa").status_code == 404

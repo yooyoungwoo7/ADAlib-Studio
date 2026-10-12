@@ -288,21 +288,46 @@ See [docs/architecture.md](docs/architecture.md) for the design and
 [docs/api_integration.md](docs/api_integration.md) for how each input maps
 onto adalib.
 
-## AI assistant (Forward Solver)
+## AI assistant (all modules)
 
-The **AI assistant** panel under Verification turns a sentence into a system
-definition: "damped pendulum with gamma = 0.5 for 10 s", then follow-ups such
-as "set mu to 3" or solver changes such as "100 segments, no L-BFGS" (checked
-like the solver panel, e.g. Nt_total divisible by n_seg), and figure styling
-for the Trajectories plots: "Times 10 pt, x1 in red, x axis 'Time [s]', legend
-top right, 8 x 6 cm at 600 dpi". Figure changes apply at once without a re-run,
-are saved with the project, set the size, dpi and format that PNG/SVG saving
-uses, and **Reset** next to the layout toggle restores the default look. The backend sends the request, the system on screen and the
-chat so far to Anthropic Claude or OpenAI, checks the answer with the equation
-parser (and asks again if it fails), and fills the editor. Nothing runs until
-you press **Run**; each answer has **Undo this change**. You can also attach up
-to three pictures of the equations (📎, paste a screenshot with Ctrl+V, or drop
-a file); the model transcribes them, and any text refines the request.
+The **AI assistant** sits in the right column below each module's settings and
+reaches to the bottom of the window (drag its top edge to resize, click its
+title to fold it; both are remembered). Each module has its own chat, kept
+while you switch modules:
+
+- **Forward Solver**: a sentence becomes a system ("damped pendulum with
+  gamma = 0.5 for 10 s"), follow-ups edit it ("set mu to 3"), solver changes
+  ("100 segments, no L-BFGS", checked like the solver panel, e.g. Nt_total
+  divisible by n_seg) and figure styling for the Trajectories plots ("Times
+  10 pt, x1 in red, x axis 'Time [s]', 8 x 6 cm at 600 dpi"). Figure changes
+  apply at once without a re-run, are saved with the project and remembered in
+  the browser, set the size, dpi and format that PNG/SVG saving uses, and
+  **Reset** next to the layout toggle restores the default look.
+- **Operator Learning**: the controlled system with state training ranges and
+  control bounds, the rollout (T, n_seg), the training size, or a built-in
+  benchmark.
+- **Inverse Solver**: the model, which parameters to estimate (initial guess,
+  bounds), the synthetic data (points, noise, observed states) and the
+  training options. It cannot create an observation file.
+- **Model Predictive Control**: the plant with its ranges, the control
+  interval, targets and weights, the controllers to compare and the
+  closed-loop / surrogate options. A changed plant, range, dt or training
+  size needs **Train** again.
+
+In every module the assistant can also restyle any figure with full Plotly
+access: "remove the small inner ticks", "legend under the plot", "omega panel in
+red", "log y axis on the loss", "8 x 6 cm at 600 dpi". It sees each figure's
+layout and traces and answers with a Plotly layout/trace patch per figure (or
+for all figures of the module); patches apply at once, are saved with the
+project and remembered in the browser, and **Undo this change** reverts them.
+
+The backend sends the request, what is on screen and the chat so far to
+Anthropic Claude or OpenAI, checks the answer with the equation parser and the
+same request models a run uses (and asks again if it fails), and fills the
+panels. Nothing runs until you press **Run** / **Train**; each answer has
+**Undo this change**. You can also attach up to three pictures of the
+equations (📎, paste a screenshot with Ctrl+V, or drop a file); the model
+transcribes them, and any text refines the request.
 
 Open **Settings** in the panel to pick the provider, paste an API key and
 optionally change the model (defaults: `claude-haiku-5-5`, `gpt-5.4-mini`).

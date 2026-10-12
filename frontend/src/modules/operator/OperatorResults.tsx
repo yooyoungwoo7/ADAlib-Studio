@@ -119,7 +119,7 @@ export function OperatorResults({
                 <>
                   <PredictionStats e={latest} unit={unit} />
                   <div className="flex-1 min-h-[320px]">
-                    {latestSpec && <Plot spec={latestSpec} filename={`operator_${model.model_id}_${latest.id}`} ariaLabel="Operator prediction per state" themeKey={themeKey} />}
+                    {latestSpec && <Plot spec={latestSpec} figureId="prediction" filename={`operator_${model.model_id}_${latest.id}`} ariaLabel="Operator prediction per state" themeKey={themeKey} />}
                   </div>
                 </>
               ) : (
@@ -137,7 +137,7 @@ export function OperatorResults({
                   Up to the 8 most recent predictions of this model, one colour each; {t.paper ? "black solid = reference, dashed = operator" : "dashed = reference"}.
                 </p>
                 <div className="flex-1 min-h-[320px]">
-                  {compareSpec && <Plot spec={compareSpec} filename={`operator_${model.model_id}_compare`} ariaLabel="Comparison of operator predictions" themeKey={themeKey} />}
+                  {compareSpec && <Plot spec={compareSpec} figureId="compare" filename={`operator_${model.model_id}_compare`} ariaLabel="Comparison of operator predictions" themeKey={themeKey} />}
                 </div>
                 <table className="text-[12px] font-mono tabular-nums">
                   <thead>
@@ -184,7 +184,7 @@ export function OperatorResults({
                   : "Physics loss per epoch from adalib's learner.history."}
               </p>
               <div className="flex-1 min-h-[280px]">
-                {lossSpec ? <Plot spec={lossSpec} filename={`operator_${model.model_id}_loss`} ariaLabel="Operator training loss" themeKey={themeKey} /> : <p className="text-muted">No training history available.</p>}
+                {lossSpec ? <Plot spec={lossSpec} figureId="loss" filename={`operator_${model.model_id}_loss`} ariaLabel="Operator training loss" themeKey={themeKey} /> : <p className="text-muted">No training history available.</p>}
               </div>
             </div>
             <ModelSummary m={model} train={train} />

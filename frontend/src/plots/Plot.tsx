@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useContext, useEffect, useMemo, useRef } from "react";
+import { applyFigureStyle, figureExport, figureInfo, FigureStyleContext } from "./figureStyle";
 import type { ExportOptions } from "./style";
 import type { PlotSpec } from "./theme";
 
@@ -7,10 +8,14 @@ const loadPlotly = () => import("plotly.js-dist-min").then((m) => m.default);
 
 export { baseLayout, chartTokens, type PlotSpec, type Tokens } from "./theme";
 
-/** Save a rendered chart (the element passed to Plot's elementRef); size/dpi from the figure style. */
+type PlotElement = HTMLElement & { studioExport?: ExportOptions };
+
+/** Save a rendered chart (the element passed to Plot's elementRef); size/dpi from the figure style
+ *  (an AI figure patch's export settings on that chart win over `exp`). */
 export async function downloadPlot(el: HTMLElement, filename: string, exp: ExportOptions) {
   const Plotly = await loadPlotly();
-  await Plotly.downloadImage(el as HTMLElement & Parameters<typeof Plotly.downloadImage>[0], { ...exp, filename } as never);
+  const own = (el as PlotElement).studioExport;
+  await Plotly.downloadImage(el as HTMLElement & Parameters<typeof Plotly.downloadImage>[0], { ...(own ?? exp), filename } as never);
 }
 
 export function Plot({
@@ -21,6 +26,7 @@ export function Plot({
   elementRef,
   className = "w-full h-full min-h-[240px]",
   exportOptions = { format: "png", scale: 2 },
+  figureId,
 }: {
   spec: PlotSpec;
   filename: string;
@@ -31,8 +37,21 @@ export function Plot({
   className?: string;
   /** what the camera button saves */
   exportOptions?: ExportOptions;
+  /** stable id ("trajectories", "loss", ...) the AI assistant's figure style refers to */
+  figureId?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const fig = useContext(FigureStyleContext);
+  const styled = useMemo(() => applyFigureStyle(spec, fig.style, figureId), [spec, fig.style, figureId]);
+  const exp = figureExport(exportOptions, styled.exp);
+
+  // tell the assistant what this figure looks like before its patch
+  const { register, unregister } = fig;
+  useEffect(() => {
+    if (!figureId) return;
+    register(figureInfo(figureId, ariaLabel, spec));
+  }, [figureId, ariaLabel, spec, register]);
+  useEffect(() => (figureId ? () => unregister(figureId) : undefined), [figureId, unregister]);
 
   useEffect(() => {
     const el = ref.current;
@@ -40,19 +59,20 @@ export function Plot({
     let alive = true;
     loadPlotly().then((Plotly) => {
       if (!alive) return;
-      Plotly.react(el, spec.data, spec.layout, {
+      (el as PlotElement).studioExport = styled.exp ? exp : undefined;
+      Plotly.react(el, styled.spec.data, styled.spec.layout, {
         responsive: true,
         displaylogo: false,
         scrollZoom: false,
         modeBarButtonsToRemove: ["select2d", "lasso2d", "autoScale2d"],
-        toImageButtonOptions: { ...exportOptions, filename },
+        toImageButtonOptions: { ...exp, filename },
       });
     });
     return () => {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [spec, filename, themeKey, JSON.stringify(exportOptions)]);
+  }, [styled, filename, themeKey, JSON.stringify(exp)]);
 
   useEffect(() => {
     const el = ref.current;

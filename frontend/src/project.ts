@@ -1,3 +1,4 @@
+import type { FigureStyle } from "./plots/figureStyle";
 import type { ParsedCsv } from "./services/csv";
 import type {
   Example,
@@ -98,6 +99,8 @@ export interface Project {
   operator: OperatorProject;
   inverse: InverseProject;
   mpc: MPCProject;
+  /** AI figure styles (Plotly patches) per module; see plots/figureStyle.ts */
+  figures?: Partial<Record<ModuleId, FigureStyle>>;
 }
 
 // adalib 0.1.0 MPCOptions defaults (backend/app/schemas/mpc.py mirrors them)
@@ -598,6 +601,7 @@ export function parseProjectFile(text: string, defaults: ForwardOptions): Projec
         options: { ...MPC_DEFAULTS, ...(mpcRaw.options ?? {}) },
         controllers: Array.isArray(mpcRaw.controllers) && mpcRaw.controllers.length ? mpcRaw.controllers : base.mpc.controllers,
       },
+      figures: raw.figures && typeof raw.figures === "object" ? (raw.figures as Project["figures"]) : undefined,
     },
   };
 }

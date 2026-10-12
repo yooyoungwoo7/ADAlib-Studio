@@ -1,6 +1,8 @@
 import type {
   AssistForwardRequest,
   AssistForwardResponse,
+  AssistModuleRequest,
+  AssistModuleResponse,
   AssistSettingsUpdate,
   AssistStatus,
   Capabilities,
@@ -82,6 +84,7 @@ export const api = {
   log: (id: string, offset: number) =>
     request<{ text: string; offset: number }>(`/api/jobs/${id}/log?offset=${offset}`),
   cancel: (id: string) => request<JobStatus>(`/api/jobs/${id}/cancel`, { method: "POST" }),
+  deleteJob: (id: string) => request<{ deleted: string }>(`/api/jobs/${id}`, { method: "DELETE" }),
   result: (id: string) => request<JobResult>(`/api/jobs/${id}/result`),
   jobRequest: (id: string) => request<{ kind: string; payload: unknown }>(`/api/jobs/${id}/request`),
   operatorBuiltins: () => request<{ systems: OperatorBuiltin[]; presets: OperatorPreset[] }>("/api/operator/builtins"),
@@ -103,5 +106,7 @@ export const api = {
     request<AssistStatus>("/api/assist/settings", { method: "PUT", body: JSON.stringify(upd) }),
   assistForward: (req: AssistForwardRequest) =>
     request<AssistForwardResponse>("/api/assist/forward", { method: "POST", body: JSON.stringify(req) }),
+  assistModule: (module: "operator" | "inverse" | "mpc", req: AssistModuleRequest) =>
+    request<AssistModuleResponse>(`/api/assist/${module}`, { method: "POST", body: JSON.stringify(req) }),
   fileUrl: (id: string, name: string) => `/api/jobs/${id}/files/${name}`,
 };

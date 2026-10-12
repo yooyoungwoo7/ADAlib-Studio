@@ -204,7 +204,7 @@ export function ForwardResults({
                     <figure key={s.name} className="relative group border border-line rounded">
                       <Plot
                         spec={panelSpecs[k]}
-                        filename={`${base}_${slug(s.name)}`}
+                        figureId={`trajectory_panel_${s.name}`} filename={`${base}_${slug(s.name)}`}
                         ariaLabel={`Trajectory of ${s.name}`}
                         themeKey={themeKey}
                         className="w-full h-[270px]"
@@ -236,7 +236,7 @@ export function ForwardResults({
               </div>
             ) : (
               <div className="flex-1 min-h-0">
-                <Plot spec={trajSpec} filename={`${base}_trajectories`} ariaLabel="State trajectories versus time" themeKey={themeKey} exportOptions={exp} />
+                <Plot spec={trajSpec} figureId="trajectories" filename={`${base}_trajectories`} ariaLabel="State trajectories versus time" themeKey={themeKey} exportOptions={exp} />
               </div>
             )}
           </div>
@@ -259,7 +259,7 @@ export function ForwardResults({
               </select>
             </div>
             <div className="flex-1 min-h-0">
-              <Plot spec={phaseSpec} filename={`${base}_phase_${phase[0]}_${phase[1]}`} ariaLabel={`Phase portrait ${phase[1]} versus ${phase[0]}`} themeKey={themeKey} />
+              <Plot spec={phaseSpec} figureId="phase" filename={`${base}_phase_${phase[0]}_${phase[1]}`} ariaLabel={`Phase portrait ${phase[1]} versus ${phase[0]}`} themeKey={themeKey} />
             </div>
           </div>
         )}
@@ -273,7 +273,7 @@ export function ForwardResults({
             </p>
             {result.history.length ? (
               <div className="flex-1 min-h-0">
-                <Plot spec={lossSpec} filename={`${base}_training_loss`} ariaLabel="Training loss per stage" themeKey={themeKey} />
+                <Plot spec={lossSpec} figureId="loss" filename={`${base}_training_loss`} ariaLabel="Training loss per stage" themeKey={themeKey} />
               </div>
             ) : (
               <p className="text-muted">No stage lines were found in the log.</p>
@@ -287,7 +287,7 @@ export function ForwardResults({
               Pointwise |ADA − reference| on the returned grid (derived quantity). Reference: {result.reference?.label}.
             </p>
             <div className="flex-1 min-h-0">
-              <Plot spec={errSpec} filename={`${base}_error`} ariaLabel="Absolute difference from the reference over time" themeKey={themeKey} />
+              <Plot spec={errSpec} figureId="error" filename={`${base}_error`} ariaLabel="Absolute difference from the reference over time" themeKey={themeKey} />
             </div>
           </div>
         )}

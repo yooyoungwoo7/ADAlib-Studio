@@ -1,12 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { canon, type AssistBinding } from "../../components/assist/AssistPanel";
 import { Field, NumberField, Section } from "../../components/common/controls";
 import { EmptyResults } from "../../components/common/EmptyResults";
 import { SystemEditor } from "../../components/equations/SystemEditor";
 import { useSystemValidation } from "../../hooks/hooks";
 import { operatorFromExample, operatorIssues, operatorRequest, type OperatorProject } from "../../project";
 import { api } from "../../services/api";
-import type { OperatorBuiltin, OperatorManifest, OperatorPreset, OperatorTrainResult } from "../../types/api";
+import type { OperatorBuiltin, OperatorManifest, OperatorOptions, OperatorPreset, OperatorTrainResult, SystemSpec } from "../../types/api";
+import { askModule, renamed } from "../assist";
 import { backendBlock, type ModuleContext, type ModuleView } from "../types";
+
+/** The Operator training setup as the assistant sees it (backend: llm_assist._parse_operator). */
+interface OperatorAssistState {
+  source: OperatorProject["source"];
+  builtin: OperatorProject["builtin"];
+  system: SystemSpec;
+  n_seg: number;
+  t_final: number;
+  options: OperatorOptions;
+}
 import { BuiltinPanel, OperatorConfig } from "./OperatorConfig";
 import { OperatorResults, type PredictionEntry } from "./OperatorResults";
 
@@ -40,7 +52,7 @@ export function useOperatorModule(ctx: ModuleContext): ModuleView {
   const refreshModels = useCallback(() => api.operatorModels().then(setModels).catch(() => {}), []);
   useEffect(() => {
     if (ctx.conn === "online") refreshModels();
-  }, [ctx.conn, refreshModels]);
+  }, [ctx.conn, refreshModels, ctx.historyKey]);
 
   const model = models.find((m) => m.model_id === p.modelId) ?? models[0] ?? null;
   const [train, setTrain] = useState<OperatorTrainResult | null>(null);
@@ -119,6 +131,40 @@ export function useOperatorModule(ctx: ModuleContext): ModuleView {
     blockReason,
     run: async () => (await api.operatorTrain(operatorRequest(p, p.source === "custom" ? p.system.name : p.builtin))).job_id,
     onExample: (ex) => ctx.setProject((pr) => ({ ...pr, operator: operatorFromExample(ex, pr.operator) })),
+    assist: {
+      label: "Operator Learning",
+      state: { source: p.source, builtin: p.builtin, system: p.system, n_seg: p.n_seg, t_final: p.t_final, options: p.options },
+      ask: askModule<OperatorAssistState>("operator"),
+      apply: (s) =>
+        ctx.setProject((pr) => {
+          const o = pr.operator;
+          return {
+            ...pr,
+            name: renamed(pr.name, o.system, s.system),
+            operator: {
+              ...o,
+              source: s.source,
+              builtin: s.builtin,
+              system: s.system,
+              n_seg: s.n_seg,
+              t_final: s.t_final,
+              options: s.options,
+              exampleId: canon(o.system) === canon(s.system) ? o.exampleId : null,
+              presetId: canon(o.options) === canon(s.options) ? o.presetId : null,
+            },
+          };
+        }),
+      keyLabels: { options: "training" },
+      intro:
+        "Describe the controlled system (states with their training ranges, control inputs), the rollout and the training size in words, " +
+        "or attach a picture of the equations. Review the setup, then press Train.",
+      examples: [
+        "Single tank: level h in [0, 3] m, inflow q in [0, 1] as the control",
+        "Train longer: 3000 epochs on 4000 samples",
+        "Use the built-in triple tank",
+      ],
+      placeholder: "e.g. Van der Pol with a force input u in [-1, 1]",
+    } satisfies AssistBinding<OperatorAssistState>,
     editor:
       p.source === "custom" ? (
         <SystemEditor

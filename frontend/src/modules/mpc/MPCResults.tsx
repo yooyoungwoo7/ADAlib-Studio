@@ -72,7 +72,7 @@ export function MPCResults({ jobId, r, themeKey }: { jobId: string; r: MPCResult
               {tracked.length ? "; dashed = target." : "."}
             </p>
             <div className="flex-1 min-h-[320px]">
-              <Plot spec={states} filename={`${base}_states`} ariaLabel="Closed-loop state trajectories" themeKey={themeKey} />
+              <Plot spec={states} figureId="states" filename={`${base}_states`} ariaLabel="Closed-loop state trajectories" themeKey={themeKey} />
             </div>
           </div>
         )}
@@ -80,7 +80,7 @@ export function MPCResults({ jobId, r, themeKey }: { jobId: string; r: MPCResult
           <div className="flex flex-col h-full min-h-[300px] gap-2">
             <p className="text-[12px] text-ink-2">Each input is held constant over its step; dotted = bounds.</p>
             <div className="flex-1 min-h-[260px]">
-              <Plot spec={controls} filename={`${base}_controls`} ariaLabel="Optimised control inputs" themeKey={themeKey} />
+              <Plot spec={controls} figureId="controls" filename={`${base}_controls`} ariaLabel="Optimised control inputs" themeKey={themeKey} />
             </div>
           </div>
         )}
@@ -88,7 +88,7 @@ export function MPCResults({ jobId, r, themeKey }: { jobId: string; r: MPCResult
           <div className="flex flex-col h-full min-h-[300px] gap-2">
             <p className="text-[12px] text-ink-2">Optimizer objective reported by adalib at each step (MPCResult.cost).</p>
             <div className="flex-1 min-h-[260px]">
-              <Plot spec={cost} filename={`${base}_objective`} ariaLabel="Objective per MPC step" themeKey={themeKey} />
+              <Plot spec={cost} figureId="objective" filename={`${base}_objective`} ariaLabel="Objective per MPC step" themeKey={themeKey} />
             </div>
           </div>
         )}
@@ -198,7 +198,7 @@ export function MPCTrainView({ r, themeKey }: { r: MPCTrainResult; themeKey: str
       </div>
       {loss ? (
         <div className="flex-1 min-h-[280px]">
-          <Plot spec={loss} filename={`mpc_surrogate_${m.model_id}_loss`} ariaLabel="Surrogate training loss" themeKey={themeKey} />
+          <Plot spec={loss} figureId="surrogate_loss" filename={`mpc_surrogate_${m.model_id}_loss`} ariaLabel="Surrogate training loss" themeKey={themeKey} />
         </div>
       ) : (
         <p className="text-muted">adalib logged no per-epoch losses for this surrogate.</p>

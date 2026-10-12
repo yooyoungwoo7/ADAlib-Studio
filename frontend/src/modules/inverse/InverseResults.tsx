@@ -137,26 +137,26 @@ export function InverseResults({ jobId, r, themeKey }: { jobId: string; r: Inver
               ADA trajectory from the inverse run; dashed: {r.check.error ? `check failed (${r.check.error})` : r.check.label}.
             </p>
             <div className="flex-1 min-h-[300px]">
-              <Plot spec={fit} filename={`${base}_fit`} ariaLabel="Fitted trajectories and observations" themeKey={themeKey} />
+              <Plot spec={fit} figureId="fit" filename={`${base}_fit`} ariaLabel="Fitted trajectories and observations" themeKey={themeKey} />
             </div>
           </div>
         )}
         {tab === "history" && (
           <div className="h-full min-h-[320px]">
-            <Plot spec={hist} filename={`${base}_parameter_history`} ariaLabel="Parameter estimates over optimizer steps" themeKey={themeKey} />
+            <Plot spec={hist} figureId="parameter_history" filename={`${base}_parameter_history`} ariaLabel="Parameter estimates over optimizer steps" themeKey={themeKey} />
           </div>
         )}
         {tab === "loss" && (
           <div className="flex flex-col h-full min-h-[320px] gap-2">
             <p className="text-[12px] text-ink-2">adalib's loss_history: one entry per Adam step plus one per segment's L-BFGS stage (downsampled for display).</p>
             <div className="flex-1 min-h-[280px]">
-              <Plot spec={loss} filename={`${base}_loss`} ariaLabel="Inverse training loss" themeKey={themeKey} />
+              <Plot spec={loss} figureId="loss" filename={`${base}_loss`} ariaLabel="Inverse training loss" themeKey={themeKey} />
             </div>
           </div>
         )}
         {tab === "residuals" && (
           <div className="h-full min-h-[320px]">
-            <Plot spec={res} filename={`${base}_residuals`} ariaLabel="Residuals at observation times" themeKey={themeKey} />
+            <Plot spec={res} figureId="residuals" filename={`${base}_residuals`} ariaLabel="Residuals at observation times" themeKey={themeKey} />
           </div>
         )}
       </div>
